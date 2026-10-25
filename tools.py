@@ -1,7 +1,9 @@
-"""Finance tools — fake data, no API key needed. Great for learning."""
+"""Finance tools — real-time data via yfinance."""
+
+import yfinance as yf
 
 # ---------------------------------------------------------------------------
-# Fake data
+# Portfolio (your positions — edit these to match your real holdings)
 # ---------------------------------------------------------------------------
 
 PORTFOLIO = {
@@ -12,46 +14,56 @@ PORTFOLIO = {
     "AMZN": {"shares": 3,   "avg_cost": 3400.00},
 }
 
-PRICES = {
-    "AAPL":  182.50,
-    "GOOGL": 3100.00,
-    "TSLA":  245.80,
-    "MSFT":  415.20,
-    "AMZN":  3850.00,
-    "NVDA":  875.00,
-    "META":  520.00,
-}
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
-NEWS = {
-    "AAPL":  "Apple announces record iPhone sales in Q4.",
-    "GOOGL": "Google DeepMind releases new AI model beating benchmarks.",
-    "TSLA":  "Tesla misses delivery targets; stock drops 8%.",
-    "MSFT":  "Microsoft Azure revenue up 28% year-over-year.",
-    "AMZN":  "Amazon expands same-day delivery to 50 new cities.",
-    "NVDA":  "Nvidia reports 200% revenue growth driven by AI chip demand.",
-    "META":  "Meta's ad revenue rebounds strongly after privacy changes.",
-}
+def _fetch_price(ticker: str) -> float | None:
+    """Return the latest price for a ticker, or None if unavailable."""
+    try:
+        info = yf.Ticker(ticker).fast_info
+        return round(float(info["last_price"]), 2)
+    except Exception:
+        return None
+
+
+def _fetch_news(ticker: str) -> list[dict]:
+    """Return up to 3 recent news items for a ticker."""
+    try:
+        items = yf.Ticker(ticker).news or []
+        return [
+            {"title": n.get("content", {}).get("title", ""), "url": n.get("content", {}).get("canonicalUrl", {}).get("url", "")}
+            for n in items[:3]
+        ]
+    except Exception:
+        return []
+
 
 # ---------------------------------------------------------------------------
 # Tool functions
 # ---------------------------------------------------------------------------
 
 def get_stock_price(args: dict) -> dict:
-    """Return the current price for a ticker symbol."""
+    """Return the current real-time price for a ticker symbol."""
     ticker = args["ticker"].upper()
-    if ticker not in PRICES:
-        return {"error": f"Unknown ticker: {ticker}. Available: {list(PRICES.keys())}"}
-    return {"ticker": ticker, "price": PRICES[ticker], "currency": "USD"}
+    price = _fetch_price(ticker)
+    if price is None:
+        return {"error": f"Could not fetch price for {ticker}. Check the ticker symbol."}
+    return {"ticker": ticker, "price": price, "currency": "USD"}
 
 
 def get_portfolio(args: dict) -> dict:
-    """Return the user's full portfolio with current values."""
+    """Return the user's portfolio with real-time values and gain/loss."""
     rows = []
     total_cost = 0.0
     total_value = 0.0
 
     for ticker, pos in PORTFOLIO.items():
-        price = PRICES.get(ticker, 0)
+        price = _fetch_price(ticker)
+        if price is None:
+            rows.append({"ticker": ticker, "error": "price unavailable"})
+            continue
+
         cost = pos["shares"] * pos["avg_cost"]
         value = pos["shares"] * price
         gain = value - cost
@@ -70,7 +82,7 @@ def get_portfolio(args: dict) -> dict:
         total_value += value
 
     return {
-        "positions": rows,
+        "positions":   rows,
         "total_cost":  round(total_cost, 2),
         "total_value": round(total_value, 2),
         "total_gain":  round(total_value - total_cost, 2),
@@ -78,33 +90,35 @@ def get_portfolio(args: dict) -> dict:
 
 
 def get_news(args: dict) -> dict:
-    """Return the latest news headline for a ticker."""
+    """Return recent news headlines for a ticker."""
     ticker = args["ticker"].upper()
-    if ticker not in NEWS:
-        return {"error": f"No news for {ticker}. Available: {list(NEWS.keys())}"}
-    return {"ticker": ticker, "headline": NEWS[ticker]}
+    articles = _fetch_news(ticker)
+    if not articles:
+        return {"error": f"No news found for {ticker}."}
+    return {"ticker": ticker, "news": articles}
 
 
 def compare_stocks(args: dict) -> dict:
-    """Compare two or more stocks by current price."""
+    """Compare real-time prices of two or more stocks side by side."""
     tickers = [t.upper() for t in args["tickers"]]
     result = []
     for ticker in tickers:
-        if ticker in PRICES:
-            result.append({"ticker": ticker, "price": PRICES[ticker]})
+        price = _fetch_price(ticker)
+        if price is not None:
+            result.append({"ticker": ticker, "price": price})
         else:
-            result.append({"ticker": ticker, "error": "unknown ticker"})
+            result.append({"ticker": ticker, "error": "price unavailable"})
     return {"comparison": result}
 
 
 # ---------------------------------------------------------------------------
-# Registry — maps tool name → (definition, handler)
+# Registry
 # ---------------------------------------------------------------------------
 
 TOOL_DEFINITIONS = [
     {
         "name": "get_stock_price",
-        "description": "Get the current price of a stock by ticker symbol (e.g. AAPL, TSLA).",
+        "description": "Get the current real-time price of a stock by ticker symbol (e.g. AAPL, TSLA, MSFT).",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -115,7 +129,7 @@ TOOL_DEFINITIONS = [
     },
     {
         "name": "get_portfolio",
-        "description": "Get the user's stock portfolio: positions, current values, and total gain/loss.",
+        "description": "Get the user's stock portfolio with real-time prices, current values, and total gain/loss.",
         "input_schema": {
             "type": "object",
             "properties": {},
@@ -124,7 +138,7 @@ TOOL_DEFINITIONS = [
     },
     {
         "name": "get_news",
-        "description": "Get the latest news headline for a stock ticker.",
+        "description": "Get recent news headlines for a stock ticker.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -135,7 +149,7 @@ TOOL_DEFINITIONS = [
     },
     {
         "name": "compare_stocks",
-        "description": "Compare current prices of two or more stocks side by side.",
+        "description": "Compare current real-time prices of two or more stocks side by side.",
         "input_schema": {
             "type": "object",
             "properties": {

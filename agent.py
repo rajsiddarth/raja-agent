@@ -8,10 +8,10 @@ MODEL = "claude-opus-5-5"
 
 client = anthropic.Anthropic()
 
-SYSTEM_PROMPT = """You are a helpful personal finance assistant.
+SYSTEM_PROMPT = """You are a professional personal finance assistant.
 You have access to the user's stock portfolio and real-time stock data.
 Use tools to fetch accurate data before answering — never guess prices.
-Be concise and clear. Format numbers with $ and % signs."""
+Be formal and professional in all responses. Format numbers with $ and % signs."""
 
 
 def run_agent(user_message: str, history: list) -> tuple[str, list]:
