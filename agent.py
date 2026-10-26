@@ -1,50 +1,34 @@
-"""Finance Agent — Claude + Robinhood MCP. Run: python agent.py"""
+"""Finance Agent — Claude + yfinance tools. Run: python agent.py"""
 
+import json
 import anthropic
+from dotenv import load_dotenv
+from tools import TOOLS, TOOL_HANDLERS
+
+load_dotenv()
 
 MODEL = "claude-opus-5-5"
 
-# Robinhood MCP server — Claude calls these tools directly, no local handlers needed
-MCP_SERVERS = [
-    {
-        "type": "url",
-        "url":  "https://agent.robinhood.com",
-        "name": "robinhood",
-    }
-]
-
-# Tell Claude to use the Robinhood MCP toolset
-TOOLS = [
-    {
-        "type":            "mcp_toolset",
-        "mcp_server_name": "robinhood",
-    }
-]
-
 client = anthropic.Anthropic()
 
-SYSTEM_PROMPT = """You are a professional personal finance assistant with access to the user's Robinhood account.
-Use the available Robinhood tools to fetch accurate, real-time data before answering — never guess prices or balances.
-Be formal and professional in all responses. Format numbers with $ and % signs.
-Only perform read operations (quotes, portfolio, positions, news). Do not place or cancel orders."""
+SYSTEM_PROMPT = """You are a professional personal finance assistant with access to real-time market data.
+Use the available tools to fetch accurate, up-to-date information before answering — never guess prices or figures.
+Be formal and professional in all responses. Format numbers with $ and % signs where appropriate."""
 
 
-def run_agent(user_message: str, history: list) -> tuple[str, list]:
+def run_agent(user_message: str, history: list, on_tool_call=None) -> tuple[str, list]:
     """Run one agent turn. Returns (reply, updated_history)."""
     history = history + [{"role": "user", "content": user_message}]
 
     while True:
-        response = client.beta.messages.create(
+        response = client.messages.create(
             model=MODEL,
             max_tokens=4096,
             system=SYSTEM_PROMPT,
             tools=TOOLS,
-            mcp_servers=MCP_SERVERS,
-            betas=["mcp-client-2025-11-20"],
             messages=history,
         )
 
-        # Append full response content (preserves tool_use blocks)
         history = history + [{"role": "assistant", "content": response.content}]
 
         if response.stop_reason == "end_turn":
@@ -55,33 +39,46 @@ def run_agent(user_message: str, history: list) -> tuple[str, list]:
             return reply, history
 
         if response.stop_reason == "tool_use":
-            # MCP tools execute server-side — we just collect results from the response
             tool_results = []
             for block in response.content:
-                if not hasattr(block, "type") or block.type != "tool_use":
+                if block.type != "tool_use":
                     continue
-                print(f"  → {block.name}")
-                # For MCP tools, results come back automatically in the next response
-                # We still need to send a tool_result acknowledging each tool_use block
+
+                print(f"  → {block.name}({json.dumps(block.input)})")
+                if on_tool_call:
+                    on_tool_call(block.name)
+
+                handler = TOOL_HANDLERS.get(block.name)
+                if handler is None:
+                    result = {"error": f"Unknown tool: {block.name}"}
+                    is_error = True
+                else:
+                    try:
+                        result = handler(block.input)
+                        is_error = False
+                    except Exception as exc:
+                        result = {"error": str(exc)}
+                        is_error = True
+
                 tool_results.append({
-                    "type":        "tool_result",
+                    "type": "tool_result",
                     "tool_use_id": block.id,
-                    "content":     "",  # MCP server handles execution; result is in next response
+                    "content": json.dumps(result),
+                    "is_error": is_error,
                 })
 
-            if tool_results:
-                history = history + [{"role": "user", "content": tool_results}]
+            history = history + [{"role": "user", "content": tool_results}]
 
         else:
             return f"(stopped: {response.stop_reason})", history
 
 
 def main() -> None:
-    print("Finance Agent — Robinhood MCP  (type 'quit' to exit)")
+    print("Finance Agent  (type 'quit' to exit)")
     print("=" * 50)
     print("Try: 'What is Apple's current price?'")
-    print("     'Show my portfolio'")
-    print("     'What are my current positions?'\n")
+    print("     'Show me Tesla fundamentals'")
+    print("     'What are the latest news for NVDA?'\n")
 
     history: list = []
 

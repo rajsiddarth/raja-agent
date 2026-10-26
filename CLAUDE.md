@@ -5,44 +5,60 @@ Starts simple (agent + tools), grows toward RAG and multi-agent patterns.
 
 ## Project Structure
 
-- `agent.py` — Claude agent loop connected to Robinhood via MCP
+- `agent.py` — Claude agent loop with yfinance tools
+- `tools.py` — Tool definitions and handlers (yfinance)
+- `app.py` — Streamlit chat UI
+- `requirements.txt` — Dependencies
+- `.env` — API key (gitignored)
 
 ## Running the Agent
 
+### CLI
 ```bash
-pip install anthropic>=2.3.0
-export ANTHROPIC_API_KEY=your-key-here
+source venv/bin/activate
 python3 agent.py
 ```
 
-Requires an active Robinhood session authenticated via the Claude connector.
+### Streamlit UI
+```bash
+source venv/bin/activate
+streamlit run app.py
+```
+
+### First-time setup
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+echo ANTHROPIC_API_KEY=your-key-here > .env
+```
 
 ## How the Agent Loop Works
 
 ```
 User message
     ↓
-Claude decides which Robinhood tool(s) to call  ← stop_reason == "tool_use"
+Claude decides which tool(s) to call  ← stop_reason == "tool_use"
     ↓
-Robinhood MCP server executes the tool server-side
+Tool handler runs locally via yfinance
     ↓
 Result returned to Claude
     ↓
-Claude generates final answer                    ← stop_reason == "end_turn"
+Claude generates final answer          ← stop_reason == "end_turn"
 ```
 
 ## Data Source
 
-Real-time data via the **Robinhood MCP server** (`https://agent.robinhood.com`).
-Claude has access to 87 Robinhood tools including:
+Real-time market data via **yfinance** (Yahoo Finance). No auth required.
 
-| Category | Example tools |
+| Tool | Data |
 |---|---|
-| Quotes | `get_equity_quotes`, `get_crypto_quotes` |
-| Portfolio | `get_portfolio`, `get_equity_positions` |
-| Orders | `get_equity_orders`, `get_option_orders` |
-| Research | `get_equity_fundamentals`, `get_earnings_calendar` |
-| Watchlists | `get_watchlists`, `get_watchlist_items` |
+| `get_quote` | Price, change, volume, market cap |
+| `get_fundamentals` | P/E, EPS, 52-week range, margins |
+| `get_history` | OHLCV bars (1d to 5y) |
+| `get_news` | Recent headlines |
+| `search_ticker` | Find symbol by company name |
+| `get_options` | Calls/puts chain |
 
 ## Model
 
@@ -51,13 +67,13 @@ Uses `claude-opus-5-5`. Change the `MODEL` constant in `agent.py` to switch.
 ## Coding Conventions
 
 - Type hints on all function parameters and return values
-- Keep the agent loop in `agent.py`; do not add local tool handlers
-- MCP tools execute server-side — no local `tools.py` needed
+- Tool definitions in `tools.py` (TOOLS + TOOL_HANDLERS)
+- Agent loop stays in `agent.py`
 - Handle errors defensively; surface clear messages to the user
 
 ## Roadmap
 
-1. **Agent + MCP tools** ← you are here
+1. **Agent + yfinance tools** ← you are here
 2. **Agent + memory** — persist conversation history across sessions
 3. **Agent + RAG** — add vector search over earnings reports / filings
 4. **Multi-agent** — orchestrator + specialist agents (research, risk, news)
