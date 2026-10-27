@@ -6,3 +6,5 @@ venv/
 *.egg-info/
 sessions/
 memory_db/
+filings_db/
+edgar_cache/
