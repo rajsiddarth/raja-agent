@@ -76,7 +76,9 @@ def run_agent(
             messages=history,
         )
 
-        history = history + [{"role": "assistant", "content": response.content}]
+        # Store plain dicts (not SDK objects) so history can be saved as JSON
+        content = [b.model_dump(exclude_none=True) for b in response.content]
+        history = history + [{"role": "assistant", "content": content}]
 
         if response.stop_reason == "end_turn":
             reply = next(
