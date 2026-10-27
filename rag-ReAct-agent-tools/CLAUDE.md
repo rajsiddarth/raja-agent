@@ -1,0 +1,119 @@
+# ReAct Finance Agent with RAG over SEC Filings
+
+A finance agent that uses the **ReAct pattern** + **long-term memory** + **RAG over SEC filings** — `search_filings` retrieves passages from a company's latest 10-K/10-Q, and `recall_memory` searches past sessions.
+
+## Project Structure
+
+- `agent.py` — ReAct agent loop with think tool + session load/save + stores each turn
+- `memory.py` — JSON-based session persistence (load, save, list, delete)
+- `memory_store.py` — ChromaDB long-term memory (extract turns, store, search)
+- `edgar.py` — SEC EDGAR client (ticker → CIK, latest 10-K/10-Q, HTML → text)
+- `filings_store.py` — Filing RAG: split sections, chunk, index (ChromaDB), search
+- `tools.py` — Tool definitions and handlers (yfinance + `recall_memory` + `search_filings`)
+- `backfill.py` — Loads existing session JSON files into long-term memory
+- `app.py` — Streamlit chat UI with session sidebar
+- `requirements.txt` — Dependencies
+- `sessions/` — Saved session files (gitignored)
+- `memory_db/` — Long-term memory vector DB (gitignored)
+- `filings_db/` — Filings vector DB (gitignored)
+- `edgar_cache/` — Cached SEC ticker list (gitignored)
+- `.env` — `ANTHROPIC_API_KEY` and `SEC_USER_AGENT` (gitignored)
+
+## Running the Agent
+
+### CLI
+```bash
+source ../venv/bin/activate
+python3 agent.py
+```
+
+### Streamlit UI
+```bash
+source ../venv/bin/activate
+streamlit run app.py
+```
+
+## How Memory Works
+
+```
+User message → agent turn (ReAct loop, may call recall_memory)
+    ↓
+Save full history to sessions/<name>.json        (archive, current session context)
+    ↓
+Store "Q + final answer" in memory_db/            (long-term, all sessions)
+```
+
+- Current session: full history is loaded, as in step 3.
+- Past sessions: Claude calls `recall_memory(query)` to retrieve the most relevant past turns.
+- Records drop think steps and raw tool results; tickers are kept as metadata.
+- Record ID is `session:turn_index`, so re-storing a turn overwrites it (backfill is re-runnable).
+- Embeddings: ChromaDB default (`all-MiniLM-L6-v2`, local). Tests inject an offline embedding via `tests/conftest.py`.
+
+## How Filing RAG Works
+
+```
+search_filings(symbol, query, form="10-K")
+    ↓ edgar.latest_filing — ticker → CIK → most recent filing of that form
+    ↓ not indexed yet? download → html_to_text → split_sections → chunk_text → embed → filings_db/
+    ↓ query the chunks of that filing only (where accession = …), top n by cosine similarity
+    ↓ return {filing: {form, filing_date, period, url}, passages: [{section, text, relevance}]}
+```
+
+- Chunks: ~1,000 chars (MiniLM reads ~256 tokens), ~200 char overlap, never cross a Part/Item section.
+- The section heading is embedded with each chunk and stripped from returned text.
+- Chunk IDs are `accession:index`; re-indexing overwrites. One filing is indexed once, shared by all sessions.
+- EDGAR needs `SEC_USER_AGENT` (name + email) and ≤10 requests/s; `edgar._get` enforces both.
+- `EdgarError` messages are user-safe; the tool returns them as `{"error": ...}`.
+- Tests mock HTTP and inject the offline embedding (`filings_db` fixture in `tests/conftest.py`).
+
+## How ReAct Works
+
+```
+User message
+    ↓
+Claude calls think() — reasons about what data it needs
+    ↓
+Claude calls data tools (get_quote, get_fundamentals, etc.)
+    ↓
+Claude synthesizes all data into a final answer
+```
+
+## Data Tools (via yfinance)
+
+| Tool | Data |
+|---|---|
+| `get_quote` | Price, change, volume, market cap |
+| `get_fundamentals` | P/E, EPS, 52-week range, margins |
+| `get_history` | OHLCV bars (1d to 5y) |
+| `get_news` | Recent headlines |
+| `search_ticker` | Find symbol by company name |
+| `get_options` | Calls/puts chain |
+| `recall_memory` | Search past conversations across all sessions |
+| `search_filings` | Passages from the latest 10-K/10-Q (SEC EDGAR) |
+
+## Model
+
+Uses `claude-sonnet-4-6`. Change the `MODEL` constant in `agent.py` to switch.
+
+Note: `claude-opus-5-5` refuses financial data questions — use `claude-sonnet-4-6` or later.
+
+## Coding Conventions
+
+- Type hints on all function parameters and return values
+- `on_think` callback surfaces reasoning to the UI
+- `on_tool_call` callback surfaces tool calls to the UI
+- History saved after every turn — never lose a conversation
+- A long-term memory failure must never break the chat — warn and continue
+- Filing answers must come from retrieved passages and cite form, filing date and section
+- Handle errors defensively; surface clear messages to the user
+
+## Roadmap
+
+1. ✅ **Reactive agent** — agent + tools (`reactive-agent-tools/`)
+2. ✅ **ReAct agent** — reason + act (`ReAct-agent-tools/`)
+3. ✅ **Agent + memory** — conversation history persistence (`memory-convhistory-ReAct-agent-tools/`)
+4. ✅ **Agent + long-term memory** — vector search over past sessions (`longterm-memory-ReAct-agent-tools/`)
+5. ✅ **Agent + RAG** — vector search over SEC filings ← you are here
+6. **Multi-agent** — orchestrator + specialist agents
+
+Be formal and professional

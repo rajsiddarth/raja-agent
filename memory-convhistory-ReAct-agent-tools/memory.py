@@ -24,10 +24,20 @@ def load_history(session_name: str) -> list:
 
 
 def save_history(session_name: str, history: list) -> None:
-    """Persist conversation history for a session."""
+    """Persist conversation history for a session.
+
+    Writes to a temp file and swaps it in, so a failed write never leaves a truncated session file.
+    """
     path = _session_path(session_name)
-    with open(path, "w") as f:
-        json.dump({"session": session_name, "updated_at": datetime.now().isoformat(), "history": history}, f, indent=2)
+    tmp_path = f"{path}.tmp"
+    try:
+        with open(tmp_path, "w") as f:
+            json.dump({"session": session_name, "updated_at": datetime.now().isoformat(), "history": history}, f, indent=2)
+        os.replace(tmp_path, path)
+    except BaseException:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+        raise
 
 
 def list_sessions() -> list[dict]:
