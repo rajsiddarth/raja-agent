@@ -4,9 +4,11 @@ A filing is indexed the first time it is searched and kept in filings_db/ afterw
 so later questions about the same filing (from any session) are fast.
 """
 
+import math
 import os
 import re
 import time
+from collections import Counter
 
 import edgar
 
@@ -23,6 +25,24 @@ embedding_function = None
 
 # How long an EDGAR "which filing is current?" answer is trusted before asking EDGAR again
 LOOKUP_TTL_S = 24 * 60 * 60
+
+# Search: "vector" (embeddings only) or "hybrid" (embeddings + BM25 keyword search, merged with RRF).
+# The defaults below are the variant that won on the retrieval eval's dev questions (see README):
+# BM25 re-orders the vector search's own results, so it improves ranking without dropping any passage.
+SEARCH_MODE = "hybrid"
+# True: BM25 only re-orders the passages vector search returned. False: each method contributes its top
+# CANDIDATES and the merged list can include passages vector search missed (ranks better, but dropped
+# correct passages from the top 5 on the eval).
+KEYWORD_RERANK_ONLY = True
+CANDIDATES = 20     # passages each method contributes when KEYWORD_RERANK_ONLY is False
+RRF_K = 60          # reciprocal rank fusion constant: score = sum of weight / (RRF_K + rank) over both lists
+KEYWORD_WEIGHT = 1.0  # weight of the BM25 list relative to the vector list (1.0) in the fusion
+DROP_QUESTION_WORDS = True  # leave question-framing words ("describe", "fiscal", years) out of the BM25 query
+BM25_K1 = 1.5       # how quickly repeated query words stop adding score
+BM25_B = 0.75       # how much long chunks are penalised
+
+# accession -> BM25 index over that filing's chunks, built on first keyword search
+_bm25_cache: dict[str, "BM25"] = {}
 
 _collection = None
 # (symbol, form, fiscal_year) -> (looked_up_at, filing)
@@ -55,6 +75,7 @@ def reset() -> None:
     global _collection
     _collection = None
     _lookup_cache.clear()
+    _bm25_cache.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -154,6 +175,7 @@ def index_filing(filing: dict, text: str) -> int:
                 "url": filing["url"],
             } for c in part],
         )
+    _bm25_cache.pop(filing["accession"], None)  # rebuilt from the new chunks on the next keyword search
     return len(chunks)
 
 
@@ -217,16 +239,137 @@ def search(filing: dict, query: str, n_results: int = 5) -> list[dict]:
 
 
 def search_filing(query: str, accession: str, n_results: int = 5) -> list[dict]:
-    """Return the chunks of one filing most similar to the query."""
+    """Return the chunks of one filing most relevant to the query: [{section, text, relevance}].
+
+    In "vector" mode relevance is the cosine similarity. In "hybrid" mode the vector and BM25 rankings are
+    merged with reciprocal rank fusion, and relevance is the fused score scaled so the top passage is 1.0.
+    """
+    if SEARCH_MODE == "vector":
+        return [_passage(hit, round(hit["similarity"], 3)) for hit in _vector_search(query, accession, n_results)]
+
+    bm25 = _bm25_index(accession)
+    candidates = min(n_results if KEYWORD_RERANK_ONLY else CANDIDATES, len(bm25.ids))
+    if candidates == 0:
+        return []  # nothing indexed for this filing
+    vector_ids = [hit["id"] for hit in _vector_search(query, accession, candidates)]
+    keyword_ids = bm25.top(query, candidates, among=vector_ids if KEYWORD_RERANK_ONLY else None)
+    fused = reciprocal_rank_fusion([vector_ids, keyword_ids], weights=[1.0, KEYWORD_WEIGHT])[:n_results]
+    if not fused:
+        return []
+    top_score = fused[0][1]
+    return [_passage(bm25.docs[chunk_id], round(score / top_score, 3)) for chunk_id, score in fused]
+
+
+def _passage(hit: dict, relevance: float) -> dict:
+    doc = hit["document"]
+    return {"section": hit["section"], "text": doc.split("\n", 1)[1] if "\n" in doc else doc, "relevance": relevance}
+
+
+def _vector_search(query: str, accession: str, n_results: int) -> list[dict]:
+    """Embedding search: [{id, document, section, similarity}], most similar first."""
     result = _get_collection().query(query_texts=[query], n_results=n_results, where={"accession": accession})
     return [
-        {
-            "section": meta["section"],
-            "text": doc.split("\n", 1)[1] if "\n" in doc else doc,
-            "relevance": round(1 - dist, 3),
-        }
-        for doc, meta, dist in zip(result["documents"][0], result["metadatas"][0], result["distances"][0])
+        {"id": chunk_id, "document": doc, "section": meta["section"], "similarity": 1 - dist}
+        for chunk_id, doc, meta, dist in zip(
+            result["ids"][0], result["documents"][0], result["metadatas"][0], result["distances"][0]
+        )
     ]
+
+
+def reciprocal_rank_fusion(
+    rankings: list[list[str]], k: int = RRF_K, weights: list[float] | None = None
+) -> list[tuple[str, float]]:
+    """Merge ranked lists of ids: each id scores sum(weight / (k + rank)) over the lists it appears in.
+
+    Only ranks matter, not the raw scores, so cosine similarities and BM25 scores (which are on different
+    scales) can be combined. An id near the top of both lists beats one at the top of only one.
+    """
+    weights = weights or [1.0] * len(rankings)
+    scores: dict[str, float] = {}
+    for ranking, weight in zip(rankings, weights):
+        for rank, chunk_id in enumerate(ranking, start=1):
+            scores[chunk_id] = scores.get(chunk_id, 0.0) + weight / (k + rank)
+    return sorted(scores.items(), key=lambda item: item[1], reverse=True)
+
+
+# ---------------------------------------------------------------------------
+# BM25 keyword search
+# ---------------------------------------------------------------------------
+
+# very common words that carry no meaning for matching; BM25's IDF already discounts them, this just saves work
+_STOPWORDS = frozenset(
+    "a an and are as at be by did do does for from has have how in is it its of on or that the this to "
+    "was were what when where which who why will with".split()
+)
+
+
+# Words that frame a question about a filing rather than name its topic. The search is already limited to
+# one filing, so they match boilerplate everywhere ("fiscal 2021" appears throughout a fiscal-2021 10-K).
+_QUESTION_WORDS = frozenset(
+    "describe described explain say says said cite cites mention mentions discuss disclose report reported "
+    "latest filing filings fiscal year quarter 10 k q annual quarterly".split()
+)
+
+
+def query_terms(query: str) -> list[str]:
+    """The words BM25 searches for: tokens minus question-framing words and years, if DROP_QUESTION_WORDS."""
+    terms = tokenize(query)
+    if DROP_QUESTION_WORDS:
+        terms = [t for t in terms if t not in _QUESTION_WORDS and not re.fullmatch(r"(19|20)\d\d", t)]
+    return terms
+
+
+def tokenize(text: str) -> list[str]:
+    """Lowercase words and numbers, e.g. "Taiwan Semiconductor's 10-K" -> ['taiwan', 'semiconductor', 's', '10', 'k']."""
+    return [t for t in re.findall(r"[a-z0-9]+", text.lower()) if t not in _STOPWORDS]
+
+
+class BM25:
+    """Okapi BM25 over one filing's chunks.
+
+    A chunk scores higher when it contains the query's words often (term frequency, with diminishing returns
+    set by k1), when those words are rare across the filing (inverse document frequency, so "Epic" counts far
+    more than "company"), and when the chunk is not unusually long (length normalisation, set by b).
+    """
+
+    def __init__(self, ids: list[str], docs: dict[str, dict], k1: float = BM25_K1, b: float = BM25_B) -> None:
+        self.ids, self.docs, self.k1, self.b = ids, docs, k1, b
+        self.term_freqs = [Counter(tokenize(docs[i]["document"])) for i in ids]
+        self.lengths = [sum(tf.values()) for tf in self.term_freqs]
+        self.avg_length = sum(self.lengths) / len(ids) if ids else 0.0
+        doc_freq = Counter(term for tf in self.term_freqs for term in tf)
+        n = len(ids)
+        self.idf = {term: math.log((n - df + 0.5) / (df + 0.5) + 1) for term, df in doc_freq.items()}
+
+    def scores(self, query: str) -> list[float]:
+        terms = [t for t in query_terms(query) if t in self.idf]
+        result = []
+        for tf, length in zip(self.term_freqs, self.lengths):
+            norm = self.k1 * (1 - self.b + self.b * length / self.avg_length)
+            result.append(sum(self.idf[t] * tf[t] * (self.k1 + 1) / (tf[t] + norm) for t in terms if tf[t]))
+        return result
+
+    def top(self, query: str, n: int, among: list[str] | None = None) -> list[str]:
+        """Ids of the n highest-scoring chunks that contain at least one query word (optionally only `among`)."""
+        allowed = set(among) if among is not None else None
+        ranked = sorted(
+            ((score, chunk_id) for score, chunk_id in zip(self.scores(query), self.ids)
+             if allowed is None or chunk_id in allowed),
+            key=lambda pair: pair[0], reverse=True,
+        )
+        return [chunk_id for score, chunk_id in ranked[:n] if score > 0]
+
+
+def _bm25_index(accession: str) -> BM25:
+    """The BM25 index for one filing, built from its stored chunks on first use."""
+    if accession not in _bm25_cache:
+        result = _get_collection().get(where={"accession": accession}, include=["documents", "metadatas"])
+        docs = {
+            chunk_id: {"id": chunk_id, "document": doc, "section": meta["section"]}
+            for chunk_id, doc, meta in zip(result["ids"], result["documents"], result["metadatas"])
+        }
+        _bm25_cache[accession] = BM25(sorted(docs), docs)
+    return _bm25_cache[accession]
 
 
 def filing_chunks(accession: str) -> list[dict]:

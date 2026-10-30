@@ -12,7 +12,7 @@ All the agents answer questions about stocks using market data from [yfinance](h
 | 2 | [`ReAct-agent-tools/`](ReAct-agent-tools/) | **ReAct.** A `think` tool makes Claude reason before acting; first eval suite | ✅ |
 | 3 | [`memory-convhistory-ReAct-agent-tools/`](memory-convhistory-ReAct-agent-tools/) | **Conversation memory.** Named sessions saved as JSON, so they can be resumed after a restart | ✅ |
 | 4 | [`longterm-memory-ReAct-agent-tools/`](longterm-memory-ReAct-agent-tools/) | **Long-term memory.** Past turns stored in a Chroma vector DB; `recall_memory` searches every session | ✅ |
-| 5 | [`rag-ReAct-agent-tools/`](rag-ReAct-agent-tools/) | **RAG over SEC filings.** `search_filings` retrieves cited passages from a company's 10-K/10-Q (latest or any fiscal year) | ✅ |
+| 5 | [`rag-ReAct-agent-tools/`](rag-ReAct-agent-tools/) | **RAG over SEC filings.** `search_filings` retrieves cited passages from a company's 10-K/10-Q (latest or any fiscal year), using hybrid search: embeddings, re-ranked by BM25 keyword scores | ✅ |
 | 6 | — | **Multi-agent.** An orchestrator that hands work to specialist agents (market data, filings, memory) | Planned |
 
 Each folder has a `README.md` covering how that step works and a `CLAUDE.md` with notes for Claude Code.
@@ -78,7 +78,7 @@ The step-5 README explains each metric with a worked example. The results are sa
 
 ```bash
 cd rag-ReAct-agent-tools
-python evals/run_retrieval_evals.py --compare evals/results/retrieval_recall_precision.json
+python evals/run_retrieval_evals.py --compare evals/results/retrieval_hybrid_rerank.json
 ```
 
 Step 5 also has an **answer eval**. It runs the live agent and has a second model, `claude-opus-5-5`, judge each answer. It measures:

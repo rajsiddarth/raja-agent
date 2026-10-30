@@ -9,7 +9,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import edgar
-from filings_store import CHUNK_CHARS, chunk_text, split_sections, strip_company
+from filings_store import BM25, CHUNK_CHARS, chunk_text, reciprocal_rank_fusion, split_sections, strip_company, tokenize
 from tools import search_filings
 
 FILING_TEXT = "\n".join([
@@ -213,6 +213,65 @@ def test_search_strips_company_name_before_querying(filings_db):
         results = filings_db.search(filing, "What supply chain risks does Example Corp describe?", 1)
     search_filing.assert_called_once_with("What supply chain risks does describe?", FILING["accession"], 1)
     assert results[0]["section"] == "Part I — Item 1A. Risk Factors"
+
+
+# ---------------------------------------------------------------------------
+# Hybrid search: BM25 + reciprocal rank fusion
+# ---------------------------------------------------------------------------
+
+def _bm25(*texts):
+    ids = [f"c{i}" for i in range(len(texts))]
+    return BM25(ids, {i: {"id": i, "document": t, "section": "S"} for i, t in zip(ids, texts)})
+
+
+def test_tokenize_lowercases_and_drops_stopwords():
+    assert tokenize("What does the Epic Games lawsuit claim?") == ["epic", "games", "lawsuit", "claim"]
+
+
+def test_bm25_favours_rare_words():
+    index = _bm25(
+        "The Company faces competition and the Company sells products.",
+        "Epic Games filed a lawsuit against the Company.",
+        "The Company designs products for the Company's customers.",
+    )
+    assert index.top("Epic lawsuit company", 3)[0] == "c1"  # "epic" and "lawsuit" are rare, "company" is everywhere
+    assert index.top("bitcoin", 3) == []  # no chunk contains the word
+
+
+def test_bm25_penalises_long_chunks():
+    filler = " ".join(["revenue"] * 60)
+    index = _bm25("tariffs " + filler, "tariffs increased costs", "unrelated text here")
+    assert index.top("tariffs", 2) == ["c1", "c0"]  # same one match, but c1 is much shorter
+
+
+def test_reciprocal_rank_fusion_rewards_agreement():
+    fused = reciprocal_rank_fusion([["a", "b", "c"], ["b", "d"]], k=60)
+    ids = [chunk_id for chunk_id, _ in fused]
+    assert ids[0] == "b"  # 2nd in one list and 1st in the other beats 1st in only one
+    assert set(ids) == {"a", "b", "c", "d"}
+    assert dict(fused)["b"] == pytest.approx(1 / 62 + 1 / 61)
+
+
+@pytest.mark.parametrize("mode", ["vector", "hybrid"])
+def test_search_modes_find_the_risk_section(filings_db, monkeypatch, mode):
+    monkeypatch.setattr(filings_db, "SEARCH_MODE", mode)
+    filings_db.index_filing(FILING, FILING_TEXT)
+    results = filings_db.search_filing("suppliers supply chain disruption risk", FILING["accession"], 2)
+    assert results[0]["section"] == "Part I — Item 1A. Risk Factors"
+    if mode == "hybrid":
+        assert results[0]["relevance"] == 1.0  # fused scores are scaled so the top passage is 1.0
+
+
+def test_hybrid_search_on_unindexed_filing_returns_nothing(filings_db):
+    assert filings_db.search_filing("anything", "no-such-accession", 5) == []
+
+
+def test_reindexing_rebuilds_the_keyword_index(filings_db):
+    filings_db.index_filing(FILING, FILING_TEXT)
+    filings_db.search_filing("suppliers", FILING["accession"], 1)
+    assert FILING["accession"] in filings_db._bm25_cache
+    filings_db.index_filing(FILING, FILING_TEXT)
+    assert FILING["accession"] not in filings_db._bm25_cache
 
 
 def test_reindexing_does_not_duplicate(filings_db):

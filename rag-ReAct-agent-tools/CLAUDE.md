@@ -59,6 +59,7 @@ search_filings(symbol, query, form="10-K", fiscal_year=None)
     ↓ not indexed yet? download → html_to_text → split_sections → chunk_text → embed → filings_db/
     ↓ filings_store.search — strip_company removes the company name and ticker from the query
     ↓ query the chunks of that filing only (where accession = …), top n by cosine similarity
+    ↓ hybrid: BM25 scores those n chunks; reciprocal rank fusion re-orders them (KEYWORD_RERANK_ONLY)
     ↓ return {filing: {form, filing_date, period, url}, passages: [{section, text, relevance}]}
 ```
 
@@ -67,6 +68,8 @@ search_filings(symbol, query, form="10-K", fiscal_year=None)
 - 10-K also matches pre-2003 `10-K405`; amendments (`10-K/A`) are skipped.
 - The company name comes from SEC's ticker list (`filing["company"]`, e.g. "NVIDIA CORP"). A name is stripped only where it is capitalised, and a ticker only in upper case with 2+ letters (so "revenue target" and the ticker "A" are left alone). Removing the name beat replacing it with "the Company" in the retrieval eval.
 - `LOOKUP_TTL_S` (24h) bounds how long a running app can miss a newly filed 10-K/10-Q.
+- Search settings live at the top of `filings_store.py`: `SEARCH_MODE` ("hybrid"/"vector"), `KEYWORD_RERANK_ONLY`, `CANDIDATES`, `RRF_K`, `KEYWORD_WEIGHT`, `DROP_QUESTION_WORDS`. The defaults won on the retrieval eval's dev questions (README → Experiment log). Change them only with an eval run on `--split dev`, then confirm on `--split test`.
+- BM25 is hand-written (`BM25`, `tokenize`, `query_terms`, `reciprocal_rank_fusion`) with no extra dependency. Its per-filing index is built from the stored chunks on first use and dropped when the filing is re-indexed.
 - Chunks: ~1,000 chars (MiniLM reads ~256 tokens), ~200 char overlap, never cross a Part/Item section.
 - The section heading is embedded with each chunk and stripped from returned text.
 - Chunk IDs are `accession:index`; re-indexing overwrites. One filing is indexed once, shared by all sessions.
@@ -82,6 +85,7 @@ search_filings(symbol, query, form="10-K", fiscal_year=None)
 - Gold cases are pinned to a filing by `fiscal_year`. Snippets are verbatim from the filing, and questions are paraphrased.
 - `evals/run_answer_evals.py` runs the live agent plus an LLM judge (`evals/judge.py`, `claude-opus-5-5`, structured JSON output, `fallbacks: "default"`). Code-checked metrics are in `evals/answer_metrics.py`, and judge calibration is in `evals/calibrate_judge.py`. Each case costs ~$0.10. Gold questions are pinned to their filing by appending "(Use <SYMBOL>'s <form> for fiscal year <year>.)".
 - The answer runner aborts on account errors (no credit, bad key) and refuses to save a partial run as results.
+- Gold cases have `split`: "dev" (25) or "test" (12, picked with a fixed seed). Iterate on dev and check test once per accepted change.
 - Run the retrieval eval before and after any change to chunking or search. Use `--compare` against the latest file in `evals/results/` and save each accepted change as a new results file.
 
 ## How ReAct Works
