@@ -185,6 +185,15 @@ def search_filing(query: str, accession: str, n_results: int = 5) -> list[dict]:
     ]
 
 
+def filing_chunks(accession: str) -> list[dict]:
+    """Every stored chunk of one filing: [{section, text}] (used by the retrieval eval to check gold labels)."""
+    result = _get_collection().get(where={"accession": accession}, include=["documents", "metadatas"])
+    return [
+        {"section": meta["section"], "text": doc.split("\n", 1)[1] if "\n" in doc else doc}
+        for doc, meta in zip(result["documents"], result["metadatas"])
+    ]
+
+
 def indexed_filings() -> list[dict]:
     """List the filings stored in the index: [{symbol, form, filing_date, period, chunks}], newest first."""
     metas = _get_collection().get(include=["metadatas"])["metadatas"]

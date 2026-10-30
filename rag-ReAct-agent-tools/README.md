@@ -87,6 +87,21 @@ python -m pytest -q tests     # offline, fast
 python evals/run_evals.py     # live agent; memory and filings go to temp folders
 ```
 
+### Retrieval eval
+
+`evals/run_retrieval_evals.py` measures retrieval alone: whether `search_filings` returns the right passages. It makes no Claude calls.
+
+```bash
+python evals/run_retrieval_evals.py                                          # report, k=5
+python evals/run_retrieval_evals.py --save evals/results/retrieval_run.json  # also save as JSON
+```
+
+- **Gold set:** `evals/retrieval_gold.json` holds 37 paraphrased questions over five pinned filings (Apple 10-Ks for fiscal 2008, 2021 and 2025, NVIDIA's fiscal 2025 10-K, and an Apple 10-Q), plus 3 lookups that should fail. Each question lists verbatim snippets from the filing and the expected sections.
+- **Metrics:** filing lookup, hit@1/3/k, MRR@k and section@1, shown overall, per question type and per filing. A passage counts as a hit if it contains a gold snippet.
+- **Gold check:** every snippet is checked against the indexed chunks before scoring. A typo in the gold set is reported as invalid gold, not counted as a retrieval miss.
+- **Index:** the filings are indexed once into `evals/filings_db/` (gitignored). Delete that folder after changing chunking.
+- **Baseline:** `evals/results/retrieval_baseline.json`, with hit@5 = 0.57 overall and 0.10 on NVIDIA. The company name in a question pulls retrieval toward boilerplate chunks that repeat the name.
+
 ## Available Tools
 
 | Tool | What it does |

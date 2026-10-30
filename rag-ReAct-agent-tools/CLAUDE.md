@@ -71,6 +71,13 @@ search_filings(symbol, query, form="10-K", fiscal_year=None)
 - `EdgarError` messages are user-safe; the tool returns them as `{"error": ...}`.
 - Tests mock HTTP and inject the offline embedding (`filings_db` fixture in `tests/conftest.py`).
 
+## Evals
+
+- `evals/run_evals.py` runs the live agent and checks the think step, the tools called and expected strings (it calls the Claude API).
+- `evals/run_retrieval_evals.py` measures retrieval only, with no Claude calls. The gold set is `evals/retrieval_gold.json`, and the scoring lives in `evals/retrieval_metrics.py` (unit-tested).
+- Gold cases are pinned to a filing by `fiscal_year`. Snippets are verbatim from the filing, and questions are paraphrased.
+- Run the retrieval eval before and after any change to chunking or search, and compare it with `evals/results/retrieval_baseline.json`.
+
 ## How ReAct Works
 
 ```

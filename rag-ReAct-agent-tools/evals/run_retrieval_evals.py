@@ -1,0 +1,222 @@
+"""
+Retrieval eval for RAG over SEC filings — measures whether search_filing returns the right passages.
+
+No Claude calls: it runs filings_store directly with the real embedding model, so it is cheap enough
+to run after every change to chunking or search. The gold set is evals/retrieval_gold.json.
+
+Metrics (per question, then averaged overall, per question type and per filing):
+  - filing lookup : did fiscal_year pick the expected filing (period end date)?
+  - hit@k         : is a passage containing a gold snippet among the top k results?
+  - MRR@k         : 1 / rank of the first such passage (0 if not in the top k)
+  - section@1     : is the top passage from the expected section (e.g. Item 1A)?
+  - error cases   : do lookups that should fail (ETF, foreign filer, future year) fail cleanly?
+
+Before scoring, every gold snippet is checked against the indexed chunks of its filing. A case whose
+snippets are not in any chunk is reported as INVALID GOLD and left out of the scores, so a typo in the
+gold set is never mistaken for a retrieval miss.
+
+The filings are indexed once into evals/filings_db/ (gitignored) and reused on later runs; delete that
+folder after changing chunking so the filings are re-indexed with the new chunks.
+
+Usage:
+    cd rag-ReAct-agent-tools
+    source ../venv/bin/activate
+    python evals/run_retrieval_evals.py                      # k=5
+    python evals/run_retrieval_evals.py --k 8 --type risk
+    python evals/run_retrieval_evals.py --save evals/results/retrieval_baseline.json
+"""
+
+import argparse
+import json
+import os
+import sys
+import time
+from datetime import datetime, timezone
+
+EVALS_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(EVALS_DIR))
+sys.path.insert(0, EVALS_DIR)
+
+from dotenv import load_dotenv
+
+load_dotenv(os.path.join(os.path.dirname(EVALS_DIR), ".env"))
+
+import edgar
+import filings_store
+from retrieval_metrics import contains_any, first_hit_rank, section_matches, summarize, summarize_by
+
+GOLD_PATH = os.path.join(EVALS_DIR, "retrieval_gold.json")
+EVAL_FILINGS_DIR = os.path.join(EVALS_DIR, "filings_db")
+
+
+def index_filings(specs: dict) -> dict:
+    """Look up and index each gold filing. Returns {key: {ok, period, accession, chunks, error}}."""
+    filings = {}
+    for key, spec in specs.items():
+        try:
+            filing = filings_store.ensure_indexed(spec["symbol"], spec["form"], spec["fiscal_year"])
+        except edgar.EdgarError as exc:
+            filings[key] = {"ok": False, "error": str(exc)}
+            continue
+        filings[key] = {
+            "ok": filing["period"] == spec["period"],
+            "period": filing["period"],
+            "accession": filing["accession"],
+            "chunks": filings_store.filing_chunks(filing["accession"]),
+        }
+    return filings
+
+
+def check_gold(case: dict, chunks: list[dict]) -> tuple[bool, list[str]]:
+    """Return (snippet found in some chunk, sections of the chunks that contain it)."""
+    sections = sorted({c["section"] for c in chunks if contains_any(c["text"], case["gold_snippets"])})
+    return bool(sections), sections
+
+
+def run_case(case: dict, filing: dict, k: int) -> dict:
+    start = time.time()
+    passages = filings_store.search_filing(case["question"], filing["accession"], k)
+    elapsed_ms = (time.time() - start) * 1000
+    rank = first_hit_rank(passages, case["gold_snippets"])
+    return {
+        "id": case["id"],
+        "type": case["type"],
+        "filing": case["filing"],
+        "rank": rank,
+        "top_section": passages[0]["section"] if passages else "",
+        "top_section_ok": bool(passages) and section_matches(passages[0]["section"], case["gold_sections"]),
+        "top_text": passages[0]["text"][:160].replace("\n", " ") if passages else "",
+        "ms": round(elapsed_ms),
+    }
+
+
+def run_error_case(case: dict) -> dict:
+    try:
+        filing = edgar.find_filing(case["symbol"], case["form"], case["fiscal_year"])
+    except edgar.EdgarError as exc:
+        return {"id": case["id"], "passed": True, "detail": str(exc)}
+    return {"id": case["id"], "passed": False, "detail": f"unexpectedly found {filing['form']} {filing['period']}"}
+
+
+def print_metrics(label: str, metrics: dict, k: int) -> None:
+    if not metrics.get("n"):
+        print(f"  {label:<22} (no cases)")
+        return
+    print(
+        f"  {label:<22} n={metrics['n']:<3} hit@1={metrics['hit@1']:.2f}  hit@3={metrics['hit@3']:.2f}  "
+        f"hit@{k}={metrics[f'hit@{k}']:.2f}  mrr@{k}={metrics[f'mrr@{k}']:.2f}  section@1={metrics['section@1']:.2f}"
+    )
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--k", type=int, default=5, help="passages retrieved per question (default 5)")
+    parser.add_argument("--type", help="only run cases of this question type, e.g. risk")
+    parser.add_argument("--save", help="write the full results as JSON to this path")
+    args = parser.parse_args()
+
+    with open(GOLD_PATH) as f:
+        gold = json.load(f)
+    cases = [c for c in gold["cases"] if not args.type or c["type"] == args.type]
+
+    filings_store.FILINGS_DIR = EVAL_FILINGS_DIR
+    filings_store.reset()
+
+    print("=" * 72)
+    print("Retrieval Eval — RAG over SEC filings")
+    print("=" * 72)
+
+    print("\nFiling lookup (first run downloads and indexes each filing):")
+    start = time.time()
+    filings = index_filings({key: gold["filings"][key] for key in {c["filing"] for c in cases}})
+    for key, filing in sorted(filings.items()):
+        if "error" in filing:
+            print(f"  ❌ {key:<16} {filing['error']}")
+        else:
+            mark = "✅" if filing["ok"] else "❌"
+            expected = gold["filings"][key]["period"]
+            print(f"  {mark} {key:<16} period {filing['period']} (expected {expected}), {len(filing['chunks'])} chunks")
+    print(f"  ({time.time() - start:.0f}s)")
+
+    results, invalid, gold_warnings = [], [], []
+    for case in cases:
+        filing = filings[case["filing"]]
+        if not filing.get("accession"):
+            invalid.append((case["id"], "filing could not be indexed"))
+            continue
+        found, sections = check_gold(case, filing["chunks"])
+        if not found:
+            invalid.append((case["id"], "no gold snippet appears in any indexed chunk"))
+            continue
+        if not any(section_matches(s, case["gold_sections"]) for s in sections):
+            gold_warnings.append((case["id"], sections))
+        results.append(run_case(case, filing, args.k))
+
+    overall = summarize(results, args.k)
+    by_type = summarize_by(results, "type", args.k)
+    by_filing = summarize_by(results, "filing", args.k)
+
+    print("\nRetrieval:")
+    print_metrics("OVERALL", overall, args.k)
+    print("\n  By question type:")
+    for name, metrics in by_type.items():
+        print_metrics(name, metrics, args.k)
+    print("\n  By filing:")
+    for name, metrics in by_filing.items():
+        print_metrics(name, metrics, args.k)
+    if results:
+        print(f"\n  Avg search latency: {sum(r['ms'] for r in results) / len(results):.0f} ms")
+
+    misses = [r for r in results if r["rank"] is None]
+    if misses:
+        print(f"\nMisses (no gold passage in top {args.k}):")
+        for r in misses:
+            print(f"  - {r['id']}: top passage from [{r['top_section']}] \"{r['top_text'][:100]}…\"")
+
+    wrong_section = [r for r in results if r["rank"] is not None and not r["top_section_ok"]]
+    if wrong_section:
+        print("\nFound, but the top passage is from an unexpected section:")
+        for r in wrong_section:
+            print(f"  - {r['id']}: rank {r['rank']}, top passage from [{r['top_section']}]")
+
+    if gold_warnings:
+        print("\nGold snippet found, but only in chunks labelled with an unexpected section (chunking issue?):")
+        for case_id, sections in gold_warnings:
+            print(f"  - {case_id}: {'; '.join(sections)}")
+
+    if invalid:
+        print("\nINVALID GOLD (left out of the scores — fix the gold set):")
+        for case_id, reason in invalid:
+            print(f"  - {case_id}: {reason}")
+
+    error_results = [run_error_case(c) for c in gold.get("error_cases", [])] if not args.type else []
+    if error_results:
+        print("\nError cases (should fail cleanly):")
+        for r in error_results:
+            print(f"  {'✅' if r['passed'] else '❌'} {r['id']}: {r['detail']}")
+
+    if args.save:
+        os.makedirs(os.path.dirname(os.path.abspath(args.save)), exist_ok=True)
+        with open(args.save, "w") as f:
+            json.dump({
+                "run_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                "k": args.k,
+                "chunk_chars": filings_store.CHUNK_CHARS,
+                "overlap_chars": filings_store.OVERLAP_CHARS,
+                "filings": {
+                    key: {field: value for field, value in info.items() if field != "chunks"}
+                    for key, info in filings.items()
+                },
+                "overall": overall,
+                "by_type": by_type,
+                "by_filing": by_filing,
+                "cases": results,
+                "invalid_gold": invalid,
+                "gold_section_warnings": gold_warnings,
+                "error_cases": error_results,
+            }, f, indent=2)
+        print(f"\nSaved results to {args.save}")
+
+
+if __name__ == "__main__":
+    main()

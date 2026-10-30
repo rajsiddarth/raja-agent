@@ -1,0 +1,561 @@
+{
+  "run_at": "2026-10-30T16:59:50+00:00",
+  "k": 5,
+  "chunk_chars": 1000,
+  "overlap_chars": 200,
+  "filings": {
+    "AAPL-10K-2008": {
+      "ok": true,
+      "period": "2008-09-27",
+      "accession": "0001193125-08-224958"
+    },
+    "AAPL-10K-2021": {
+      "ok": true,
+      "period": "2021-09-25",
+      "accession": "0000320193-21-000105"
+    },
+    "NVDA-10K-2025": {
+      "ok": true,
+      "period": "2025-01-26",
+      "accession": "0001045810-25-000023"
+    },
+    "AAPL-10Q-2025": {
+      "ok": true,
+      "period": "2025-12-27",
+      "accession": "0000320193-26-000006"
+    },
+    "AAPL-10K-2025": {
+      "ok": true,
+      "period": "2025-09-27",
+      "accession": "0000320193-25-000079"
+    }
+  },
+  "overall": {
+    "n": 37,
+    "hit@1": 0.35135135135135137,
+    "hit@3": 0.4594594594594595,
+    "hit@5": 0.5675675675675675,
+    "mrr@5": 0.42657657657657655,
+    "section@1": 0.7027027027027027
+  },
+  "by_type": {
+    "accounting": {
+      "n": 2,
+      "hit@1": 0.5,
+      "hit@3": 0.5,
+      "hit@5": 0.5,
+      "mrr@5": 0.5,
+      "section@1": 1.0
+    },
+    "business": {
+      "n": 7,
+      "hit@1": 0.2857142857142857,
+      "hit@3": 0.2857142857142857,
+      "hit@5": 0.42857142857142855,
+      "mrr@5": 0.32142857142857145,
+      "section@1": 0.5714285714285714
+    },
+    "capital": {
+      "n": 2,
+      "hit@1": 0.5,
+      "hit@3": 1.0,
+      "hit@5": 1.0,
+      "mrr@5": 0.75,
+      "section@1": 1.0
+    },
+    "competition": {
+      "n": 3,
+      "hit@1": 0.6666666666666666,
+      "hit@3": 0.6666666666666666,
+      "hit@5": 0.6666666666666666,
+      "mrr@5": 0.6666666666666666,
+      "section@1": 0.3333333333333333
+    },
+    "governance": {
+      "n": 1,
+      "hit@1": 1.0,
+      "hit@3": 1.0,
+      "hit@5": 1.0,
+      "mrr@5": 1.0,
+      "section@1": 1.0
+    },
+    "legal": {
+      "n": 5,
+      "hit@1": 0.4,
+      "hit@3": 0.6,
+      "hit@5": 0.6,
+      "mrr@5": 0.5,
+      "section@1": 0.6
+    },
+    "mdna": {
+      "n": 7,
+      "hit@1": 0.2857142857142857,
+      "hit@3": 0.5714285714285714,
+      "hit@5": 0.8571428571428571,
+      "mrr@5": 0.46904761904761905,
+      "section@1": 0.7142857142857143
+    },
+    "risk": {
+      "n": 5,
+      "hit@1": 0.2,
+      "hit@3": 0.2,
+      "hit@5": 0.4,
+      "mrr@5": 0.25,
+      "section@1": 0.8
+    },
+    "supply_chain": {
+      "n": 5,
+      "hit@1": 0.2,
+      "hit@3": 0.2,
+      "hit@5": 0.2,
+      "mrr@5": 0.2,
+      "section@1": 0.8
+    }
+  },
+  "by_filing": {
+    "AAPL-10K-2008": {
+      "n": 6,
+      "hit@1": 0.5,
+      "hit@3": 0.6666666666666666,
+      "hit@5": 0.6666666666666666,
+      "mrr@5": 0.5833333333333334,
+      "section@1": 0.5
+    },
+    "AAPL-10K-2021": {
+      "n": 5,
+      "hit@1": 0.2,
+      "hit@3": 0.4,
+      "hit@5": 0.6,
+      "mrr@5": 0.31666666666666665,
+      "section@1": 0.8
+    },
+    "AAPL-10K-2025": {
+      "n": 12,
+      "hit@1": 0.5,
+      "hit@3": 0.6666666666666666,
+      "hit@5": 0.75,
+      "mrr@5": 0.6041666666666666,
+      "section@1": 0.8333333333333334
+    },
+    "AAPL-10Q-2025": {
+      "n": 4,
+      "hit@1": 0.75,
+      "hit@3": 0.75,
+      "hit@5": 1.0,
+      "mrr@5": 0.8,
+      "section@1": 1.0
+    },
+    "NVDA-10K-2025": {
+      "n": 10,
+      "hit@1": 0.0,
+      "hit@3": 0.0,
+      "hit@5": 0.1,
+      "mrr@5": 0.025,
+      "section@1": 0.5
+    }
+  },
+  "cases": [
+    {
+      "id": "aapl25_manufacturing_locations",
+      "type": "supply_chain",
+      "filing": "AAPL-10K-2025",
+      "rank": 1,
+      "top_section": "Part II \u2014 Item 8. Financial Statements and Supplementary Data",
+      "top_section_ok": true,
+      "top_text": "In addition, component suppliers may fail, be subject to consolidation within a particular industry, or decide to concentrate on the production of common compon",
+      "ms": 230
+    },
+    {
+      "id": "aapl25_tariffs",
+      "type": "risk",
+      "filing": "AAPL-10K-2025",
+      "rank": 1,
+      "top_section": "Part II \u2014 Item 7. Management\u2019s Discussion and Analysis of Financial Condition and Results of Operations",
+      "top_section_ok": true,
+      "top_text": "Apple Inc. | 2025 Form 10-K | 21 Tariffs and Other Measures Beginning in the second quarter of 2025, new U.S. Tariffs were announced, including additional tarif",
+      "ms": 149
+    },
+    {
+      "id": "aapl25_competition",
+      "type": "competition",
+      "filing": "AAPL-10K-2025",
+      "rank": 1,
+      "top_section": "Part I \u2014 Item 1. Business",
+      "top_section_ok": true,
+      "top_text": "Competition The markets for the Company\u2019s products and services are highly competitive and are characterized by aggressive price competition, downward pressure ",
+      "ms": 152
+    },
+    {
+      "id": "aapl25_segments",
+      "type": "business",
+      "filing": "AAPL-10K-2025",
+      "rank": 1,
+      "top_section": "Part II \u2014 Item 8. Financial Statements and Supplementary Data",
+      "top_section_ok": true,
+      "top_text": "Apple Inc. | 2025 Form 10-K | 46 Note 13 \u2013 Segment Information and Geographic Data The Company manages its business primarily on a geographic basis. The Company",
+      "ms": 149
+    },
+    {
+      "id": "aapl25_epic",
+      "type": "legal",
+      "filing": "AAPL-10K-2025",
+      "rank": 1,
+      "top_section": "Part I \u2014 Item 3. Legal Proceedings",
+      "top_section_ok": true,
+      "top_text": "Epic Games Epic Games, Inc. filed a lawsuit in the U.S. District Court for the Northern District of California (\u201cCalifornia District Court\u201d) against the Company",
+      "ms": 150
+    },
+    {
+      "id": "aapl25_doj",
+      "type": "legal",
+      "filing": "AAPL-10K-2025",
+      "rank": null,
+      "top_section": "Part I \u2014 Item 1. Business",
+      "top_section_ok": false,
+      "top_text": "Competition The markets for the Company\u2019s products and services are highly competitive and are characterized by aggressive price competition, downward pressure ",
+      "ms": 144
+    },
+    {
+      "id": "aapl25_dma",
+      "type": "legal",
+      "filing": "AAPL-10K-2025",
+      "rank": 2,
+      "top_section": "Part I \u2014 Item 1A. Risk Factors",
+      "top_section_ok": true,
+      "top_text": "From time to time, the Company has made changes to its business, including actions taken in response to litigation, competition, market conditions and legal and",
+      "ms": 152
+    },
+    {
+      "id": "aapl25_gross_margin",
+      "type": "mdna",
+      "filing": "AAPL-10K-2025",
+      "rank": 4,
+      "top_section": "Part II \u2014 Item 7. Management\u2019s Discussion and Analysis of Financial Condition and Results of Operations",
+      "top_section_ok": true,
+      "top_text": "Wearables, Home and Accessories Wearables, Home and Accessories net sales decreased during 2025 compared to 2024 primarily due to lower net sales of Accessories",
+      "ms": 161
+    },
+    {
+      "id": "aapl25_cyber_owner",
+      "type": "governance",
+      "filing": "AAPL-10K-2025",
+      "rank": 1,
+      "top_section": "Part I \u2014 Item 1C. Cybersecurity",
+      "top_section_ok": true,
+      "top_text": "The Company\u2019s management, led by its Head of Corporate Information Security, has overall responsibility for identifying, assessing and managing any material ris",
+      "ms": 139
+    },
+    {
+      "id": "aapl25_headcount",
+      "type": "business",
+      "filing": "AAPL-10K-2025",
+      "rank": null,
+      "top_section": "Part I \u2014 Item 1. Business",
+      "top_section_ok": true,
+      "top_text": "The Company believes that compensation should be competitive and equitable, and offers discretionary cash and equity awards to enable employees to share in the ",
+      "ms": 144
+    },
+    {
+      "id": "aapl25_buybacks",
+      "type": "capital",
+      "filing": "AAPL-10K-2025",
+      "rank": 2,
+      "top_section": "Part II \u2014 Item 5. Market for Registrant\u2019s Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities",
+      "top_section_ok": true,
+      "top_text": "Open market and privately negotiated purchases 28,986 $ 224.25 28,986 August 31, 2025 to September 27, 2025: Open market and privately negotiated purchases 27,2",
+      "ms": 153
+    },
+    {
+      "id": "aapl25_seasonality",
+      "type": "business",
+      "filing": "AAPL-10K-2025",
+      "rank": null,
+      "top_section": "Part II \u2014 Item 7. Management\u2019s Discussion and Analysis of Financial Condition and Results of Operations",
+      "top_section_ok": false,
+      "top_text": "First Quarter 2025: \u2022 MacBook Pro \u2022 Mac mini \u2022 iMac \u2022 iPad mini Second Quarter 2025: \u2022 iPhone 16e \u2022 iPad Air \u2022 iPad \u2022 MacBook Air \u2022 Mac Studio Third Quarter 202",
+      "ms": 150
+    },
+    {
+      "id": "aapl21_pandemic",
+      "type": "risk",
+      "filing": "AAPL-10K-2021",
+      "rank": 4,
+      "top_section": "Part II \u2014 Item 7. Management\u2019s Discussion and Analysis of Financial Condition and Results of Operations",
+      "top_section_ok": true,
+      "top_text": "The extent of the continuing impact of the COVID-19 pandemic on the Company\u2019s operational and financial performance is uncertain and will depend on many factors",
+      "ms": 149
+    },
+    {
+      "id": "aapl21_supply_chain",
+      "type": "supply_chain",
+      "filing": "AAPL-10K-2021",
+      "rank": null,
+      "top_section": "Part I \u2014 Item 1A. Risk Factors",
+      "top_section_ok": true,
+      "top_text": "The Company\u2019s business and financial performance could also be materially adversely affected depending on the time required to obtain sufficient quantities from",
+      "ms": 145
+    },
+    {
+      "id": "aapl21_iphone_growth",
+      "type": "mdna",
+      "filing": "AAPL-10K-2021",
+      "rank": 3,
+      "top_section": "Part II \u2014 Item 8. Financial Statements and Supplementary Data",
+      "top_section_ok": false,
+      "top_text": "The Company has elected to record revenue net of taxes collected from customers that are remitted to governmental authorities, with the collected taxes recorded",
+      "ms": 146
+    },
+    {
+      "id": "aapl21_services_growth",
+      "type": "mdna",
+      "filing": "AAPL-10K-2021",
+      "rank": 1,
+      "top_section": "Part II \u2014 Item 7. Management\u2019s Discussion and Analysis of Financial Condition and Results of Operations",
+      "top_section_ok": true,
+      "top_text": "Mac Mac net sales increased during 2021 compared to 2020 due primarily to higher net sales of MacBook Air, MacBook Pro and iMac. iPad iPad net sales increased d",
+      "ms": 138
+    },
+    {
+      "id": "aapl21_fiscal_year_end",
+      "type": "accounting",
+      "filing": "AAPL-10K-2021",
+      "rank": null,
+      "top_section": "Part II \u2014 Item 8. Financial Statements and Supplementary Data",
+      "top_section_ok": true,
+      "top_text": "The Company has elected to record revenue net of taxes collected from customers that are remitted to governmental authorities, with the collected taxes recorded",
+      "ms": 150
+    },
+    {
+      "id": "aapl08_iphone_accounting",
+      "type": "accounting",
+      "filing": "AAPL-10K-2008",
+      "rank": 1,
+      "top_section": "Part II \u2014 Item 7. Management\u2019s Discussion and Analysis of Financial Condition and Results of Operations",
+      "top_section_ok": true,
+      "top_text": "prices for the iPod classic, iPod nano and iPod shuffle in 2007 compared to 2006. \u2022 Net sales of iPhone and related products and services were $123 million in 2",
+      "ms": 150
+    },
+    {
+      "id": "aapl08_single_source",
+      "type": "supply_chain",
+      "filing": "AAPL-10K-2008",
+      "rank": null,
+      "top_section": "Part II \u2014 Item 8. Financial Statements and Supplementary Data",
+      "top_section_ok": false,
+      "top_text": "manufacturing vendor delayed shipments of completed products to the Company, the Company\u2019s financial condition and operating results could be materially adverse",
+      "ms": 158
+    },
+    {
+      "id": "aapl08_final_assembly",
+      "type": "supply_chain",
+      "filing": "AAPL-10K-2008",
+      "rank": null,
+      "top_section": "Part I \u2014 Item 1. Business",
+      "top_section_ok": true,
+      "top_text": "Company Background Apple Inc. and its wholly-owned subsidiaries (collectively \u201cApple\u201d or the \u201cCompany\u201d) design, manufacture, and market personal computers, port",
+      "ms": 152
+    },
+    {
+      "id": "aapl08_mac_growth",
+      "type": "mdna",
+      "filing": "AAPL-10K-2008",
+      "rank": 2,
+      "top_section": "Part II \u2014 Item 7. Management\u2019s Discussion and Analysis of Financial Condition and Results of Operations",
+      "top_section_ok": true,
+      "top_text": "Fiscal Year 2007 versus 2006 Net sales during 2007 increased 24% or $4.7 billion from 2006 even though fiscal year 2007 spanned 52 weeks while fiscal year 2006 ",
+      "ms": 142
+    },
+    {
+      "id": "aapl08_mobile_competition",
+      "type": "competition",
+      "filing": "AAPL-10K-2008",
+      "rank": 1,
+      "top_section": "Part I \u2014 Item 7. of this Form 10-K under the heading \u201cSegment Operating Performance,\u201d and in Part II, Item 8 of this Form 10-K in Notes to",
+      "top_section_ok": false,
+      "top_text": "own offerings or, alternatively, collaborate with each other to offer solutions that are more integrated than those they currently offer. Some of these current ",
+      "ms": 140
+    },
+    {
+      "id": "aapl08_ipod_nano",
+      "type": "business",
+      "filing": "AAPL-10K-2008",
+      "rank": 1,
+      "top_section": "Part I \u2014 Item 7. of this Form 10-K under the heading \u201cSegment Operating Performance,\u201d and in Part II, Item 8 of this Form 10-K in Notes to",
+      "top_section_ok": false,
+      "top_text": "iPod\u00ae shuffle The iPod shuffle weighs half an ounce and features an aluminum design and a built-in clip. The iPod shuffle is available in 1GB or 2GB flash memor",
+      "ms": 151
+    },
+    {
+      "id": "nvda25_export_controls",
+      "type": "risk",
+      "filing": "NVDA-10K-2025",
+      "rank": null,
+      "top_section": "Part I \u2014 Item 1A. Risk Factors",
+      "top_section_ok": true,
+      "top_text": "During the third quarter of fiscal year 2023, the USG announced export restrictions and export licensing requirements targeting China\u2019s semiconductor and superc",
+      "ms": 153
+    },
+    {
+      "id": "nvda25_ai_diffusion",
+      "type": "risk",
+      "filing": "NVDA-10K-2025",
+      "rank": null,
+      "top_section": "Part I \u2014 Item 1A. Risk Factors",
+      "top_section_ok": true,
+      "top_text": "Unless a license exception is available, the worldwide licensing requirements will apply to the following NVIDIA products, and any others we develop that meet t",
+      "ms": 153
+    },
+    {
+      "id": "nvda25_competitors",
+      "type": "competition",
+      "filing": "NVDA-10K-2025",
+      "rank": null,
+      "top_section": "Part IV \u2014 Item 16. Form 10-K Summary",
+      "top_section_ok": false,
+      "top_text": "All references to \u201cNVIDIA,\u201d \u201cwe,\u201d \u201cus,\u201d \u201cour,\u201d or the \u201cCompany\u201d mean NVIDIA Corporation and its subsidiaries. In addition, statements that \u201cwe believe\u201d and simi",
+      "ms": 146
+    },
+    {
+      "id": "nvda25_foundries",
+      "type": "supply_chain",
+      "filing": "NVDA-10K-2025",
+      "rank": null,
+      "top_section": "Part I \u2014 Item 1. Business",
+      "top_section_ok": true,
+      "top_text": "70 Executive Vice President, Worldwide Field Operations Debora Shoquist 70 Executive Vice President, Operations Timothy S. Teter 58 Executive Vice President and",
+      "ms": 147
+    },
+    {
+      "id": "nvda25_customer_concentration",
+      "type": "risk",
+      "filing": "NVDA-10K-2025",
+      "rank": null,
+      "top_section": "Part IV \u2014 Item 16. Form 10-K Summary",
+      "top_section_ok": false,
+      "top_text": "All references to \u201cNVIDIA,\u201d \u201cwe,\u201d \u201cus,\u201d \u201cour,\u201d or the \u201cCompany\u201d mean NVIDIA Corporation and its subsidiaries. In addition, statements that \u201cwe believe\u201d and simi",
+      "ms": 178
+    },
+    {
+      "id": "nvda25_segments",
+      "type": "business",
+      "filing": "NVDA-10K-2025",
+      "rank": null,
+      "top_section": "Part IV \u2014 Item 15. Exhibits and Financial Statement Schedules",
+      "top_section_ok": false,
+      "top_text": "79 Table of Contents NVIDIA Corporation and Subsidiaries Notes to the Consolidated Financial Statements (Continued) Sales to direct customers which represented ",
+      "ms": 151
+    },
+    {
+      "id": "nvda25_datacenter_growth",
+      "type": "mdna",
+      "filing": "NVDA-10K-2025",
+      "rank": null,
+      "top_section": "Part IV \u2014 Item 15. Exhibits and Financial Statement Schedules",
+      "top_section_ok": false,
+      "top_text": "79 Table of Contents NVIDIA Corporation and Subsidiaries Notes to the Consolidated Financial Statements (Continued) Sales to direct customers which represented ",
+      "ms": 158
+    },
+    {
+      "id": "nvda25_blackwell",
+      "type": "business",
+      "filing": "NVDA-10K-2025",
+      "rank": 4,
+      "top_section": "Part I \u2014 Item 1. Business",
+      "top_section_ok": true,
+      "top_text": "Our products for the gaming market include GeForce RTX and GeForce GTX GPUs for gaming desktop and laptop PCs, GeForce NOW cloud gaming for playing PC games on ",
+      "ms": 149
+    },
+    {
+      "id": "nvda25_securities_lawsuit",
+      "type": "legal",
+      "filing": "NVDA-10K-2025",
+      "rank": null,
+      "top_section": "Part IV \u2014 Item 15. Exhibits and Financial Statement Schedules",
+      "top_section_ok": false,
+      "top_text": "Another putative derivative action was filed on October 30, 2023 in the Court of Chancery of the State of Delaware, captioned Horanic v. Huang, et al. (Case No.",
+      "ms": 146
+    },
+    {
+      "id": "nvda25_headcount",
+      "type": "business",
+      "filing": "NVDA-10K-2025",
+      "rank": null,
+      "top_section": "Part I \u2014 Item 1. Business",
+      "top_section_ok": true,
+      "top_text": "Our customers include the world\u2019s leading public cloud and consumer internet companies, thousands of enterprises and startups, and public sector entities. We wo",
+      "ms": 161
+    },
+    {
+      "id": "aaplq_iphone",
+      "type": "mdna",
+      "filing": "AAPL-10Q-2025",
+      "rank": 1,
+      "top_section": "Part I \u2014 Item 2. Management\u2019s Discussion and Analysis of Financial Condition and Results of Operations",
+      "top_section_ok": true,
+      "top_text": "Rest of Asia Pacific Rest of Asia Pacific net sales increased during the first quarter of 2026 compared to the same quarter in 2025 primarily due to higher net ",
+      "ms": 152
+    },
+    {
+      "id": "aaplq_mac",
+      "type": "mdna",
+      "filing": "AAPL-10Q-2025",
+      "rank": 5,
+      "top_section": "Part I \u2014 Item 2. Management\u2019s Discussion and Analysis of Financial Condition and Results of Operations",
+      "top_section_ok": true,
+      "top_text": "During the first quarter of 2026, the Company announced the following updated products: \u2022 14-inch MacBook Pro \u00ae \u2022 iPad Pro \u00ae \u2022 Apple Vision Pro \u00ae Macroeconomic ",
+      "ms": 155
+    },
+    {
+      "id": "aaplq_buyback",
+      "type": "capital",
+      "filing": "AAPL-10Q-2025",
+      "rank": 1,
+      "top_section": "Part I \u2014 Item 2. Management\u2019s Discussion and Analysis of Financial Condition and Results of Operations",
+      "top_section_ok": true,
+      "top_text": "Capital Return Program In addition to its contractual cash requirements, the Company has an authorized share repurchase program. The program does not obligate t",
+      "ms": 153
+    },
+    {
+      "id": "aaplq_legal",
+      "type": "legal",
+      "filing": "AAPL-10Q-2025",
+      "rank": 1,
+      "top_section": "Part II \u2014 Item 1. Legal Proceedings",
+      "top_section_ok": true,
+      "top_text": "Apple Inc. | Q1 2026 Form 10-Q | 19 Other Legal Proceedings The Company is subject to other legal proceedings and claims that have not been fully resolved and t",
+      "ms": 151
+    }
+  ],
+  "invalid_gold": [],
+  "gold_section_warnings": [
+    [
+      "aapl08_mobile_competition",
+      [
+        "Part I \u2014 Item 7. of this Form 10-K under the heading \u201cSegment Operating Performance,\u201d and in Part II, Item 8 of this Form 10-K in Notes to"
+      ]
+    ],
+    [
+      "aapl08_ipod_nano",
+      [
+        "Part I \u2014 Item 7. of this Form 10-K under the heading \u201cSegment Operating Performance,\u201d and in Part II, Item 8 of this Form 10-K in Notes to"
+      ]
+    ]
+  ],
+  "error_cases": [
+    {
+      "id": "err_etf",
+      "passed": true,
+      "detail": "No 10-K found for SPY."
+    },
+    {
+      "id": "err_foreign_filer",
+      "passed": true,
+      "detail": "No 10-K found for TSM."
+    },
+    {
+      "id": "err_future_year",
+      "passed": true,
+      "detail": "No 10-K for fiscal year 2030 found for AAPL. Fiscal years seen (by period end date): 2025."
+    }
+  ]
+}
