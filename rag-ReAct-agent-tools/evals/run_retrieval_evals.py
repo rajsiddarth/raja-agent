@@ -9,6 +9,10 @@ Metrics (per question, then averaged overall, per question type and per filing):
   - hit@k         : is a passage containing a gold snippet among the top k results?
   - MRR@k         : 1 / rank of the first such passage (0 if not in the top k)
   - section@1     : is the top passage from the expected section (e.g. Item 1A)?
+  - recall@k      : share of the relevant passages (the "relevant" groups) found in the top k
+  - precision@k   : share of the top k passages that are relevant (a lower bound: only labelled
+                    passages count as relevant)
+  - MAP@k         : mean average precision; like MRR, but rewards ranking every relevant passage high
   - error cases   : do lookups that should fail (ETF, foreign filer, future year) fail cleanly?
 
 Before scoring, every gold snippet is checked against the indexed chunks of its filing. A case whose
@@ -44,7 +48,9 @@ load_dotenv(os.path.join(os.path.dirname(EVALS_DIR), ".env"))
 
 import edgar
 import filings_store
-from retrieval_metrics import contains_any, first_hit_rank, section_matches, summarize, summarize_by
+from retrieval_metrics import (
+    contains_any, first_hit_rank, relevance_groups, score_passages, section_matches, summarize, summarize_by,
+)
 
 GOLD_PATH = os.path.join(EVALS_DIR, "filings_gold.json")
 EVAL_FILINGS_DIR = os.path.join(EVALS_DIR, "filings_db")
@@ -69,10 +75,18 @@ def index_filings(specs: dict) -> dict:
     return filings
 
 
-def check_gold(case: dict, chunks: list[dict]) -> tuple[bool, list[str]]:
-    """Return (snippet found in some chunk, sections of the chunks that contain it)."""
+def check_gold(case: dict, chunks: list[dict]) -> tuple[str | None, list[str]]:
+    """Return (problem or None, sections of the chunks that contain a gold snippet).
+
+    Every relevance group must also appear in some chunk, or recall would count a passage that cannot exist.
+    """
     sections = sorted({c["section"] for c in chunks if contains_any(c["text"], case["gold_snippets"])})
-    return bool(sections), sections
+    if not sections:
+        return "no gold snippet appears in any indexed chunk", sections
+    for i, group in enumerate(relevance_groups(case), start=1):
+        if not any(contains_any(c["text"], group) for c in chunks):
+            return f"relevant group {i} appears in no indexed chunk", sections
+    return None, sections
 
 
 def run_case(case: dict, filing: dict, k: int) -> dict:
@@ -80,11 +94,14 @@ def run_case(case: dict, filing: dict, k: int) -> dict:
     passages = filings_store.search(filing["filing"], case["question"], k)  # same path as the search_filings tool
     elapsed_ms = (time.time() - start) * 1000
     rank = first_hit_rank(passages, case["gold_snippets"])
+    groups = relevance_groups(case)
     return {
         "id": case["id"],
         "type": case["type"],
         "filing": case["filing"],
+        "parts": "multi-part" if len(groups) > 1 else "single",
         "rank": rank,
+        **score_passages(passages, groups, k),
         "top_section": passages[0]["section"] if passages else "",
         "top_section_ok": bool(passages) and section_matches(passages[0]["section"], case["gold_sections"]),
         "top_text": passages[0]["text"][:160].replace("\n", " ") if passages else "",
@@ -112,8 +129,8 @@ def print_metrics(label: str, metrics: dict, k: int, before: dict | None = None)
             value += f" ({metrics[name] - before[name]:+.2f})"
         return value
 
-    names = ["hit@1", "hit@3", f"hit@{k}", f"mrr@{k}", "section@1"]
-    print(f"  {label:<22} n={metrics['n']:<3} " + "  ".join(fmt(name) for name in names))
+    names = ["hit@1", "hit@3", f"hit@{k}", f"mrr@{k}", "section@1", f"recall@{k}", f"precision@{k}", f"map@{k}"]
+    print(f"  {label:<22} n={metrics['n']:<3} " + "  ".join(fmt(name) for name in names if name in metrics))
 
 
 def main() -> None:
@@ -153,9 +170,9 @@ def main() -> None:
         if not filing.get("accession"):
             invalid.append((case["id"], "filing could not be indexed"))
             continue
-        found, sections = check_gold(case, filing["chunks"])
-        if not found:
-            invalid.append((case["id"], "no gold snippet appears in any indexed chunk"))
+        problem, sections = check_gold(case, filing["chunks"])
+        if problem:
+            invalid.append((case["id"], problem))
             continue
         if not any(section_matches(s, case["gold_sections"]) for s in sections):
             gold_warnings.append((case["id"], sections))
@@ -164,6 +181,7 @@ def main() -> None:
     overall = summarize(results, args.k)
     by_type = summarize_by(results, "type", args.k)
     by_filing = summarize_by(results, "filing", args.k)
+    by_parts = summarize_by(results, "parts", args.k)
 
     before = {}
     if args.compare:
@@ -181,6 +199,9 @@ def main() -> None:
     print("\n  By filing:")
     for name, metrics in by_filing.items():
         print_metrics(name, metrics, args.k, before.get("by_filing", {}).get(name))
+    print("\n  By number of relevant passages (recall < hit means a part of the answer was not retrieved):")
+    for name, metrics in by_parts.items():
+        print_metrics(name, metrics, args.k, before.get("by_parts", {}).get(name))
 
     if before:
         old_ranks = {c["id"]: c["rank"] for c in before.get("cases", [])}
@@ -237,6 +258,7 @@ def main() -> None:
                 "overall": overall,
                 "by_type": by_type,
                 "by_filing": by_filing,
+                "by_parts": by_parts,
                 "cases": results,
                 "invalid_gold": invalid,
                 "gold_section_warnings": gold_warnings,

@@ -66,11 +66,19 @@ python -m pytest -q tests       # offline, fast
 python evals/run_evals.py       # live agent evals (uses the Claude API)
 ```
 
-Step 5 also has a **retrieval eval**. It makes no Claude calls and measures whether filing search returns the right passages: hit@k, MRR and section accuracy against a 37-question gold set. The results are saved in `rag-ReAct-agent-tools/evals/results/` so you can compare runs:
+Step 5 also has a **retrieval eval**. It makes no Claude calls and measures whether filing search returns the right passages, against a 37-question gold set:
+- **hit@k:** was a right passage in the top k?
+- **MRR:** how high was the first one?
+- **recall@k:** were all the passages a complete answer needs retrieved?
+- **precision@k:** how much of what was retrieved is relevant?
+- **MAP:** were all the needed passages ranked high?
+- **section accuracy:** did the top passage come from the expected section?
+
+The step-5 README explains each metric with a worked example. The results are saved in `rag-ReAct-agent-tools/evals/results/` so you can compare runs:
 
 ```bash
 cd rag-ReAct-agent-tools
-python evals/run_retrieval_evals.py --compare evals/results/retrieval_strip_company.json
+python evals/run_retrieval_evals.py --compare evals/results/retrieval_recall_precision.json
 ```
 
 Step 5 also has an **answer eval**. It runs the live agent and has a second model, `claude-opus-5-5`, judge each answer. It measures:
