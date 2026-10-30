@@ -2,7 +2,7 @@
 Retrieval eval for RAG over SEC filings — measures whether search_filing returns the right passages.
 
 No Claude calls: it runs filings_store directly with the real embedding model, so it is cheap enough
-to run after every change to chunking or search. The gold set is evals/retrieval_gold.json.
+to run after every change to chunking or search. The gold set is evals/filings_gold.json.
 
 Metrics (per question, then averaged overall, per question type and per filing):
   - filing lookup : did fiscal_year pick the expected filing (period end date)?
@@ -46,7 +46,7 @@ import edgar
 import filings_store
 from retrieval_metrics import contains_any, first_hit_rank, section_matches, summarize, summarize_by
 
-GOLD_PATH = os.path.join(EVALS_DIR, "retrieval_gold.json")
+GOLD_PATH = os.path.join(EVALS_DIR, "filings_gold.json")
 EVAL_FILINGS_DIR = os.path.join(EVALS_DIR, "filings_db")
 
 

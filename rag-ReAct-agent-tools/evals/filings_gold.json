@@ -1,0 +1,831 @@
+{
+  "_about": "Gold set for evals/run_retrieval_evals.py (cases, error_cases) and evals/run_answer_evals.py (cases with key_facts and exact_facts, plus unanswerable_cases). Each case is pinned to one filing (by fiscal year) so new filings never change the expected answer. A retrieved passage is a hit if it contains any gold snippet (case, whitespace and curly quotes ignored). gold_sections are substrings of the expected section label. Questions are paraphrased on purpose: copying the filing's wording would flatter retrieval. key_facts are graded by the LLM judge; exact_facts are strings checked in code.",
+  "filings": {
+    "AAPL-10K-2025": {
+      "symbol": "AAPL",
+      "form": "10-K",
+      "fiscal_year": 2025,
+      "period": "2025-09-27"
+    },
+    "AAPL-10K-2021": {
+      "symbol": "AAPL",
+      "form": "10-K",
+      "fiscal_year": 2021,
+      "period": "2021-09-25"
+    },
+    "AAPL-10K-2008": {
+      "symbol": "AAPL",
+      "form": "10-K",
+      "fiscal_year": 2008,
+      "period": "2008-09-27"
+    },
+    "NVDA-10K-2025": {
+      "symbol": "NVDA",
+      "form": "10-K",
+      "fiscal_year": 2025,
+      "period": "2025-01-26"
+    },
+    "AAPL-10Q-2025": {
+      "symbol": "AAPL",
+      "form": "10-Q",
+      "fiscal_year": 2025,
+      "period": "2025-12-27"
+    }
+  },
+  "cases": [
+    {
+      "id": "aapl25_manufacturing_locations",
+      "filing": "AAPL-10K-2025",
+      "type": "supply_chain",
+      "question": "Where is most of Apple's manufacturing done, and which countries does it depend on?",
+      "gold_snippets": [
+        "manufacturing is performed in whole or in part by outsourcing partners located primarily in China mainland",
+        "manufactured by outsourcing partners that are located primarily in China mainland"
+      ],
+      "gold_sections": [
+        "Item 1A. Risk Factors",
+        "Item 8. Financial"
+      ],
+      "key_facts": [
+        "Most manufacturing is performed by outsourcing partners",
+        "The partners are located primarily in China mainland, India, Japan, South Korea, Taiwan and Vietnam"
+      ],
+      "exact_facts": [
+        "China",
+        "India",
+        "Vietnam"
+      ]
+    },
+    {
+      "id": "aapl25_tariffs",
+      "filing": "AAPL-10K-2025",
+      "type": "risk",
+      "question": "How have the new US import tariffs affected Apple's results?",
+      "gold_snippets": [
+        "new U.S. Tariffs were announced",
+        "partially offset by tariff costs"
+      ],
+      "gold_sections": [
+        "Item 7. Management",
+        "Item 1A. Risk Factors"
+      ],
+      "key_facts": [
+        "New U.S. tariffs were announced beginning in the second quarter of fiscal 2025, including on imports from China and other countries",
+        "Tariff costs weighed on products gross margin"
+      ],
+      "exact_facts": []
+    },
+    {
+      "id": "aapl25_competition",
+      "filing": "AAPL-10K-2025",
+      "type": "competition",
+      "question": "How does Apple describe the competitive environment its products face?",
+      "gold_snippets": [
+        "characterized by aggressive price competition, downward pressure on gross margins"
+      ],
+      "gold_sections": [
+        "Item 1. Business",
+        "Item 1A. Risk Factors"
+      ],
+      "key_facts": [
+        "Apple's markets are highly competitive",
+        "They are characterized by aggressive price competition and downward pressure on gross margins",
+        "They are subject to rapid technological change"
+      ],
+      "exact_facts": []
+    },
+    {
+      "id": "aapl25_segments",
+      "filing": "AAPL-10K-2025",
+      "type": "business",
+      "question": "What are Apple's reportable business segments?",
+      "gold_snippets": [
+        "reportable segments consist of the Americas, Europe, Greater China, Japan and Rest of Asia Pacific"
+      ],
+      "gold_sections": [
+        "Item 1. Business",
+        "Item 8. Financial"
+      ],
+      "key_facts": [
+        "Apple's reportable segments are geographic",
+        "The segments are the Americas, Europe, Greater China, Japan and Rest of Asia Pacific"
+      ],
+      "exact_facts": [
+        "Americas",
+        "Europe",
+        "Greater China",
+        "Japan",
+        "Rest of Asia Pacific"
+      ]
+    },
+    {
+      "id": "aapl25_epic",
+      "filing": "AAPL-10K-2025",
+      "type": "legal",
+      "question": "What is happening in Apple's court fight with Epic Games?",
+      "gold_snippets": [
+        "Epic Games, Inc. filed a lawsuit"
+      ],
+      "gold_sections": [
+        "Item 3. Legal"
+      ],
+      "key_facts": [
+        "Epic Games sued Apple alleging violations of federal and state antitrust laws and California's unfair competition law"
+      ],
+      "exact_facts": [
+        "Epic"
+      ]
+    },
+    {
+      "id": "aapl25_doj",
+      "filing": "AAPL-10K-2025",
+      "type": "legal",
+      "question": "What antitrust case has the US government brought against Apple?",
+      "gold_snippets": [
+        "civil antitrust lawsuit in the U.S. District Court for the District of New Jersey"
+      ],
+      "gold_sections": [
+        "Item 3. Legal"
+      ],
+      "key_facts": [
+        "The U.S. Department of Justice, joined by state and district attorneys general, filed a civil antitrust lawsuit against Apple",
+        "The case is in the U.S. District Court for the District of New Jersey"
+      ],
+      "exact_facts": [
+        "New Jersey"
+      ]
+    },
+    {
+      "id": "aapl25_dma",
+      "filing": "AAPL-10K-2025",
+      "type": "legal",
+      "question": "How is European regulation forcing Apple to change how apps are distributed and paid for?",
+      "gold_snippets": [
+        "Digital Markets Act"
+      ],
+      "gold_sections": [
+        "Item 1A. Risk Factors",
+        "Item 3. Legal"
+      ],
+      "key_facts": [
+        "The EU's Digital Markets Act applies to Apple",
+        "Apple has changed App Store terms in the EU, such as alternative app distribution, alternative payment processing and new fee structures"
+      ],
+      "exact_facts": [
+        "Digital Markets Act"
+      ]
+    },
+    {
+      "id": "aapl25_gross_margin",
+      "filing": "AAPL-10K-2025",
+      "type": "mdna",
+      "question": "Why did Apple's hardware gross margin percentage change in fiscal 2025?",
+      "gold_snippets": [
+        "Products gross margin percentage decreased during 2025 compared to 2024"
+      ],
+      "gold_sections": [
+        "Item 7. Management"
+      ],
+      "key_facts": [
+        "Products gross margin percentage decreased in fiscal 2025 compared to 2024",
+        "The decrease was due to a different mix of products and tariff costs, partially offset by other favorable costs"
+      ],
+      "exact_facts": []
+    },
+    {
+      "id": "aapl25_cyber_owner",
+      "filing": "AAPL-10K-2025",
+      "type": "governance",
+      "question": "Who at Apple is responsible for managing cybersecurity risk?",
+      "gold_snippets": [
+        "led by its Head of Corporate Information Security"
+      ],
+      "gold_sections": [
+        "Item 1C. Cybersecurity"
+      ],
+      "key_facts": [
+        "Apple's Head of Corporate Information Security leads the management of material cybersecurity risks"
+      ],
+      "exact_facts": [
+        "Head of Corporate Information Security"
+      ]
+    },
+    {
+      "id": "aapl25_headcount",
+      "filing": "AAPL-10K-2025",
+      "type": "business",
+      "question": "How many people does Apple employ?",
+      "gold_snippets": [
+        "approximately 166,000 full-time equivalent employees"
+      ],
+      "gold_sections": [
+        "Item 1. Business"
+      ],
+      "key_facts": [
+        "Apple had approximately 166,000 full-time equivalent employees"
+      ],
+      "exact_facts": [
+        "166,000"
+      ]
+    },
+    {
+      "id": "aapl25_buybacks",
+      "filing": "AAPL-10K-2025",
+      "type": "capital",
+      "question": "How much stock did Apple buy back in fiscal 2025, and what new buyback was authorized?",
+      "gold_snippets": [
+        "new share repurchase program of up to $100 billion",
+        "During 2025, the Company repurchased $89.3 billion"
+      ],
+      "gold_sections": [
+        "Item 7. Management",
+        "Item 5."
+      ],
+      "key_facts": [
+        "Apple repurchased $89.3 billion of its common stock in fiscal 2025",
+        "In May 2025 Apple announced a new share repurchase program of up to $100 billion"
+      ],
+      "exact_facts": [
+        "89.3",
+        "100 billion"
+      ]
+    },
+    {
+      "id": "aapl25_seasonality",
+      "filing": "AAPL-10K-2025",
+      "type": "business",
+      "question": "Is Apple's revenue seasonal, and which quarter is usually strongest?",
+      "gold_snippets": [
+        "higher net sales in its first quarter compared to other quarters"
+      ],
+      "gold_sections": [
+        "Item 1. Business"
+      ],
+      "key_facts": [
+        "Apple has historically had higher net sales in its first fiscal quarter",
+        "This is due in part to seasonal holiday demand"
+      ],
+      "exact_facts": []
+    },
+    {
+      "id": "aapl21_pandemic",
+      "filing": "AAPL-10K-2021",
+      "type": "risk",
+      "question": "How did the pandemic affect Apple's operations in fiscal 2021?",
+      "gold_snippets": [
+        "aspects of the Company's business continued to be affected by the COVID-19 pandemic",
+        "The COVID-19 pandemic and the measures taken by many countries in response"
+      ],
+      "gold_sections": [
+        "Item 7. Management",
+        "Item 1A. Risk Factors"
+      ],
+      "key_facts": [
+        "The COVID-19 pandemic continued to affect Apple's business in fiscal 2021",
+        "Many retail stores and channel partner points of sale were temporarily closed at various times"
+      ],
+      "exact_facts": []
+    },
+    {
+      "id": "aapl21_supply_chain",
+      "filing": "AAPL-10K-2021",
+      "type": "supply_chain",
+      "question": "What supply chain risks did Apple describe in fiscal 2021?",
+      "gold_snippets": [
+        "single-source outsourcing partners in the U.S., Asia and Europe",
+        "obtains certain components from single or limited sources"
+      ],
+      "gold_sections": [
+        "Item 1A. Risk Factors"
+      ],
+      "key_facts": [
+        "Apple relies on single-source outsourcing partners in the U.S., Asia and Europe for many components",
+        "Final assembly of substantially all hardware is done by outsourcing partners primarily in Asia",
+        "Apple is subject to supply shortages and price increases"
+      ],
+      "exact_facts": []
+    },
+    {
+      "id": "aapl21_iphone_growth",
+      "filing": "AAPL-10K-2021",
+      "type": "mdna",
+      "question": "Why did iPhone revenue grow in fiscal 2021?",
+      "gold_snippets": [
+        "iPhone net sales increased during 2021 compared to 2020"
+      ],
+      "gold_sections": [
+        "Item 7. Management"
+      ],
+      "key_facts": [
+        "iPhone net sales increased in fiscal 2021 compared to 2020",
+        "The growth came primarily from new iPhone models launched in the first and fourth quarters of 2021, and a favorable mix"
+      ],
+      "exact_facts": []
+    },
+    {
+      "id": "aapl21_services_growth",
+      "filing": "AAPL-10K-2021",
+      "type": "mdna",
+      "question": "What drove growth in Apple's services business in 2021?",
+      "gold_snippets": [
+        "Services net sales increased during 2021 compared to 2020"
+      ],
+      "gold_sections": [
+        "Item 7. Management"
+      ],
+      "key_facts": [
+        "Services net sales increased in fiscal 2021",
+        "The growth came primarily from advertising, the App Store and cloud services"
+      ],
+      "exact_facts": []
+    },
+    {
+      "id": "aapl21_fiscal_year_end",
+      "filing": "AAPL-10K-2021",
+      "type": "accounting",
+      "question": "When does Apple's fiscal year end?",
+      "gold_snippets": [
+        "52- or 53-week period that ends on the last Saturday of September"
+      ],
+      "gold_sections": [
+        "Item 7. Management",
+        "Item 8. Financial"
+      ],
+      "key_facts": [
+        "Apple's fiscal year is a 52- or 53-week period ending on the last Saturday of September"
+      ],
+      "exact_facts": [
+        "last Saturday of September"
+      ]
+    },
+    {
+      "id": "aapl08_iphone_accounting",
+      "filing": "AAPL-10K-2008",
+      "type": "accounting",
+      "question": "How did Apple recognize revenue from iPhone sales in 2008?",
+      "gold_snippets": [
+        "subscription accounting in accordance with SOP No. 97-2",
+        "24-month estimated economic life"
+      ],
+      "gold_sections": [
+        "Item 7. Management",
+        "Item 8. Financial"
+      ],
+      "key_facts": [
+        "Apple accounted for iPhone sales using subscription accounting under SOP No. 97-2",
+        "Revenue was recognized on a straight-line basis over the iPhone's estimated 24-month economic life"
+      ],
+      "exact_facts": [
+        "24-month"
+      ]
+    },
+    {
+      "id": "aapl08_single_source",
+      "filing": "AAPL-10K-2008",
+      "type": "supply_chain",
+      "question": "Why was relying on a few component suppliers a risk for Apple in 2008?",
+      "gold_snippets": [
+        "from single or limited sources, the Company is subject to significant supply and pricing risks",
+        "from single or limited sources, which subjects the Company to significant supply and pricing risks"
+      ],
+      "gold_sections": [
+        "Item 1A. Risk Factors",
+        "Item 1. Business"
+      ],
+      "key_facts": [
+        "Certain components, such as some optical drives and ASICs, came from single or limited sources",
+        "This exposed Apple to significant supply and pricing risks"
+      ],
+      "exact_facts": []
+    },
+    {
+      "id": "aapl08_final_assembly",
+      "filing": "AAPL-10K-2008",
+      "type": "supply_chain",
+      "question": "Who assembled Apple's laptops, iPods and iPhones in 2008?",
+      "gold_snippets": [
+        "Sole-sourced third-party vendors in China perform final assembly"
+      ],
+      "gold_sections": [
+        "Item 1A. Risk Factors",
+        "Item 1. Business"
+      ],
+      "key_facts": [
+        "Sole-sourced third-party vendors in China performed final assembly",
+        "This covered substantially all of Apple's portable products, such as MacBooks, iPods and iPhone"
+      ],
+      "exact_facts": [
+        "China"
+      ]
+    },
+    {
+      "id": "aapl08_mac_growth",
+      "filing": "AAPL-10K-2008",
+      "type": "mdna",
+      "question": "How much did Mac revenue grow in fiscal 2008?",
+      "gold_snippets": [
+        "Mac net sales increased $4.0 billion or 38% during 2008"
+      ],
+      "gold_sections": [
+        "Item 7. Management"
+      ],
+      "key_facts": [
+        "Mac net sales increased $4.0 billion, or 38%, in fiscal 2008",
+        "Mac unit sales increased by 2.7 million units, or 38%"
+      ],
+      "exact_facts": [
+        "38%"
+      ]
+    },
+    {
+      "id": "aapl08_mobile_competition",
+      "filing": "AAPL-10K-2008",
+      "type": "competition",
+      "question": "What competition did Apple face in mobile phones in 2008?",
+      "gold_snippets": [
+        "The mobile communications industry is highly competitive"
+      ],
+      "gold_sections": [
+        "Item 1. Business"
+      ],
+      "key_facts": [
+        "The mobile communications industry was highly competitive",
+        "It had several large, well-funded and experienced competitors"
+      ],
+      "exact_facts": []
+    },
+    {
+      "id": "aapl08_ipod_nano",
+      "filing": "AAPL-10K-2008",
+      "type": "business",
+      "question": "What was new about the iPod nano released in 2008?",
+      "gold_snippets": [
+        "introduced the new iPod nano, a flash-memory-based iPod"
+      ],
+      "gold_sections": [
+        "Item 1. Business"
+      ],
+      "key_facts": [
+        "The new iPod nano was introduced in September 2008",
+        "It was a flash-memory-based iPod with the thinnest iPod design to date"
+      ],
+      "exact_facts": []
+    },
+    {
+      "id": "nvda25_export_controls",
+      "filing": "NVDA-10K-2025",
+      "type": "risk",
+      "question": "How have US restrictions on chip sales to China affected NVIDIA?",
+      "gold_snippets": [
+        "shifting and expanding export control restrictions",
+        "Our competitive position has been harmed by the existing export controls"
+      ],
+      "gold_sections": [
+        "Item 1A. Risk Factors",
+        "Item 1. Business",
+        "Item 7. Management"
+      ],
+      "key_facts": [
+        "NVIDIA has faced shifting and expanding U.S. export control restrictions on sales outside the U.S., especially to China",
+        "NVIDIA says its competitive position has been harmed by the existing export controls"
+      ],
+      "exact_facts": []
+    },
+    {
+      "id": "nvda25_ai_diffusion",
+      "filing": "NVDA-10K-2025",
+      "type": "risk",
+      "question": "What is the AI Diffusion rule and why does it matter to NVIDIA?",
+      "gold_snippets": [
+        "published the \"AI Diffusion\" IFR",
+        "The AI Diffusion IFR would expose"
+      ],
+      "gold_sections": [
+        "Item 1A. Risk Factors",
+        "Item 1. Business",
+        "Item 7. Management"
+      ],
+      "key_facts": [
+        "The U.S. government published the AI Diffusion interim final rule on January 15, 2025",
+        "It would impose a worldwide licensing requirement on certain products",
+        "NVIDIA says it could harm its business, or prompt retaliation from other countries"
+      ],
+      "exact_facts": [
+        "January 15, 2025"
+      ]
+    },
+    {
+      "id": "nvda25_competitors",
+      "filing": "NVDA-10K-2025",
+      "type": "competition",
+      "question": "Which companies does NVIDIA consider its competitors?",
+      "gold_snippets": [
+        "such as Advanced Micro Devices, Inc., or AMD, Huawei Technologies Co. Ltd."
+      ],
+      "gold_sections": [
+        "Item 1. Business"
+      ],
+      "key_facts": [
+        "NVIDIA's competitors include chip and accelerator makers such as AMD, Huawei and Intel",
+        "They also include large cloud companies that design their own chips, such as Alphabet, Amazon and Microsoft"
+      ],
+      "exact_facts": [
+        "AMD",
+        "Intel"
+      ]
+    },
+    {
+      "id": "nvda25_foundries",
+      "filing": "NVDA-10K-2025",
+      "type": "supply_chain",
+      "question": "Which companies manufacture NVIDIA's chips?",
+      "gold_snippets": [
+        "We utilize foundries, such as Taiwan Semiconductor Manufacturing Company Limited"
+      ],
+      "gold_sections": [
+        "Item 1. Business"
+      ],
+      "key_facts": [
+        "NVIDIA uses foundries such as TSMC and Samsung to make its semiconductor wafers"
+      ],
+      "exact_facts": [
+        "TSMC",
+        "Samsung"
+      ]
+    },
+    {
+      "id": "nvda25_customer_concentration",
+      "filing": "NVDA-10K-2025",
+      "type": "risk",
+      "question": "How dependent is NVIDIA on a handful of large customers?",
+      "gold_snippets": [
+        "Sales to direct Customers A, B and C represented 12%, 11% and 11% of total revenue"
+      ],
+      "gold_sections": [
+        "Item 1A. Risk Factors",
+        "Item 7. Management"
+      ],
+      "key_facts": [
+        "Direct Customers A, B and C accounted for 12%, 11% and 11% of total revenue in fiscal 2025"
+      ],
+      "exact_facts": [
+        "12%",
+        "11%"
+      ]
+    },
+    {
+      "id": "nvda25_segments",
+      "filing": "NVDA-10K-2025",
+      "type": "business",
+      "question": "How does NVIDIA split its business into reporting segments?",
+      "gold_snippets": [
+        "Our two operating segments are",
+        "The Compute & Networking segment includes"
+      ],
+      "gold_sections": [
+        "Item 7. Management",
+        "Item 1. Business"
+      ],
+      "key_facts": [
+        "NVIDIA has two operating segments: Compute & Networking, and Graphics"
+      ],
+      "exact_facts": [
+        "Compute & Networking",
+        "Graphics"
+      ]
+    },
+    {
+      "id": "nvda25_datacenter_growth",
+      "filing": "NVDA-10K-2025",
+      "type": "mdna",
+      "question": "How fast did NVIDIA's data center revenue grow in fiscal 2025, and why?",
+      "gold_snippets": [
+        "Data Center revenue for fiscal year 2025 was up 142% from a year ago"
+      ],
+      "gold_sections": [
+        "Item 7. Management"
+      ],
+      "key_facts": [
+        "Data Center revenue grew 142% in fiscal 2025",
+        "The growth was driven by demand for the Hopper architecture for large language models, recommendation engines and generative AI"
+      ],
+      "exact_facts": [
+        "142%"
+      ]
+    },
+    {
+      "id": "nvda25_blackwell",
+      "filing": "NVDA-10K-2025",
+      "type": "business",
+      "question": "What is NVIDIA's Blackwell platform?",
+      "gold_snippets": [
+        "we launched the NVIDIA Blackwell architecture"
+      ],
+      "gold_sections": [
+        "Item 1. Business"
+      ],
+      "key_facts": [
+        "NVIDIA launched the Blackwell architecture in fiscal 2025",
+        "It is a full set of data center infrastructure, including GPUs, CPUs, DPUs, interconnects, switch chips, systems and networking"
+      ],
+      "exact_facts": [
+        "Blackwell"
+      ]
+    },
+    {
+      "id": "nvda25_securities_lawsuit",
+      "filing": "NVDA-10K-2025",
+      "type": "legal",
+      "question": "What lawsuit from shareholders is NVIDIA defending?",
+      "gold_snippets": [
+        "defending a securities class action lawsuit"
+      ],
+      "gold_sections": [
+        "Item 1A. Risk Factors",
+        "Item 3. Legal"
+      ],
+      "key_facts": [
+        "NVIDIA is defending a securities class action from shareholders",
+        "The suit alleges false or misleading statements about channel inventory and the impact of cryptocurrency mining"
+      ],
+      "exact_facts": []
+    },
+    {
+      "id": "nvda25_headcount",
+      "filing": "NVDA-10K-2025",
+      "type": "business",
+      "question": "How many people work at NVIDIA and where?",
+      "gold_snippets": [
+        "approximately 36,000 employees in 38 countries"
+      ],
+      "gold_sections": [
+        "Item 1. Business"
+      ],
+      "key_facts": [
+        "NVIDIA had approximately 36,000 employees in 38 countries"
+      ],
+      "exact_facts": [
+        "36,000"
+      ]
+    },
+    {
+      "id": "aaplq_iphone",
+      "filing": "AAPL-10Q-2025",
+      "type": "mdna",
+      "question": "Why did iPhone sales rise in Apple's December 2025 quarter?",
+      "gold_snippets": [
+        "iPhone net sales increased during the first quarter of 2026"
+      ],
+      "gold_sections": [
+        "Item 2. Management"
+      ],
+      "key_facts": [
+        "iPhone net sales increased in the December 2025 quarter (Q1 fiscal 2026)",
+        "The increase came from higher sales of Pro models"
+      ],
+      "exact_facts": []
+    },
+    {
+      "id": "aaplq_mac",
+      "filing": "AAPL-10Q-2025",
+      "type": "mdna",
+      "question": "Why did Mac revenue fall in the December 2025 quarter?",
+      "gold_snippets": [
+        "Mac net sales decreased during the first quarter of 2026"
+      ],
+      "gold_sections": [
+        "Item 2. Management"
+      ],
+      "key_facts": [
+        "Mac net sales decreased in the December 2025 quarter",
+        "The decrease came primarily from lower sales of laptops and desktops"
+      ],
+      "exact_facts": []
+    },
+    {
+      "id": "aaplq_buyback",
+      "filing": "AAPL-10Q-2025",
+      "type": "capital",
+      "question": "How much stock did Apple repurchase in the quarter ending December 2025?",
+      "gold_snippets": [
+        "During the first quarter of 2026, the Company repurchased $25.0 billion"
+      ],
+      "gold_sections": [
+        "Item 2. Management"
+      ],
+      "key_facts": [
+        "Apple repurchased $25.0 billion of its common stock in the quarter"
+      ],
+      "exact_facts": [
+        "25"
+      ]
+    },
+    {
+      "id": "aaplq_legal",
+      "filing": "AAPL-10Q-2025",
+      "type": "legal",
+      "question": "What legal matters did Apple disclose in its quarterly report for the December 2025 quarter?",
+      "gold_snippets": [
+        "Epic Games, Inc. filed a lawsuit",
+        "civil antitrust lawsuit in the U.S. District Court for the District of New Jersey",
+        "opened a formal noncompliance investigation",
+        "The Company is subject to other legal proceedings"
+      ],
+      "gold_sections": [
+        "Part II — Item 1. Legal"
+      ],
+      "key_facts": [
+        "Apple disclosed the Epic Games antitrust litigation",
+        "Apple disclosed the U.S. Department of Justice antitrust lawsuit",
+        "Apple disclosed the EU Digital Markets Act investigations"
+      ],
+      "exact_facts": [
+        "Epic"
+      ]
+    }
+  ],
+  "error_cases": [
+    {
+      "id": "err_etf",
+      "symbol": "SPY",
+      "form": "10-K",
+      "fiscal_year": null,
+      "why": "ETFs do not file 10-Ks"
+    },
+    {
+      "id": "err_foreign_filer",
+      "symbol": "TSM",
+      "form": "10-K",
+      "fiscal_year": null,
+      "why": "Foreign private issuers file 20-F, not 10-K"
+    },
+    {
+      "id": "err_future_year",
+      "symbol": "AAPL",
+      "form": "10-K",
+      "fiscal_year": 2030,
+      "why": "No filing exists for that year yet"
+    }
+  ],
+  "unanswerable_cases": [
+    {
+      "id": "u_aapl25_bitcoin",
+      "filing": "AAPL-10K-2025",
+      "type": "not_in_filing",
+      "question": "How much bitcoin does Apple hold on its balance sheet?",
+      "why": "Apple's 10-K reports no bitcoin holdings"
+    },
+    {
+      "id": "u_aapl21_car",
+      "filing": "AAPL-10K-2021",
+      "type": "not_in_filing",
+      "question": "What does Apple say about the timeline for launching its electric car?",
+      "why": "The 10-K never mentions an electric car"
+    },
+    {
+      "id": "u_nvda25_2030_target",
+      "filing": "NVDA-10K-2025",
+      "type": "not_in_filing",
+      "question": "What revenue target has NVIDIA set for 2030?",
+      "why": "The 10-K gives no 2030 revenue target"
+    },
+    {
+      "id": "u_nvda25_layoffs",
+      "filing": "NVDA-10K-2025",
+      "type": "not_in_filing",
+      "question": "How many employees did NVIDIA lay off during the year?",
+      "why": "The 10-K reports no layoffs"
+    },
+    {
+      "id": "u_aapl08_tv_plus",
+      "filing": "AAPL-10K-2008",
+      "type": "not_in_filing",
+      "question": "How many Apple TV+ subscribers did Apple report?",
+      "why": "Apple TV+ did not exist in 2008"
+    },
+    {
+      "id": "u_aaplq_dividend_cut",
+      "filing": "AAPL-10Q-2025",
+      "type": "false_premise",
+      "question": "Why did Apple cut its dividend this quarter?",
+      "why": "Apple did not cut its dividend; the quarterly dividend was $0.26"
+    },
+    {
+      "id": "u_nvda25_tsmc_exit",
+      "filing": "NVDA-10K-2025",
+      "type": "false_premise",
+      "question": "Why did NVIDIA stop using TSMC to manufacture its chips?",
+      "why": "NVIDIA still uses TSMC as a foundry"
+    },
+    {
+      "id": "u_aapl_fy2030",
+      "filing": null,
+      "type": "no_filing",
+      "symbol": "AAPL",
+      "form": "10-K",
+      "fiscal_year": 2030,
+      "question": "What risks does Apple describe in its 10-K for fiscal year 2030?",
+      "why": "No fiscal 2030 10-K exists"
+    }
+  ]
+}

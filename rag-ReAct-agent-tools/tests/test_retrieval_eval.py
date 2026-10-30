@@ -9,7 +9,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "evals"))
 from retrieval_metrics import first_hit_rank, normalize, section_matches, summarize, summarize_by
 
-GOLD_PATH = os.path.join(os.path.dirname(__file__), "..", "evals", "retrieval_gold.json")
+GOLD_PATH = os.path.join(os.path.dirname(__file__), "..", "evals", "filings_gold.json")
 
 
 def test_normalize_ignores_case_whitespace_and_curly_quotes():
