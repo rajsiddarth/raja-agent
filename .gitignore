@@ -8,3 +8,4 @@ sessions/
 memory_db/
 filings_db/
 edgar_cache/
+.DS_Store
