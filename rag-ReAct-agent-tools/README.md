@@ -23,7 +23,8 @@ This is step 5 of the learning roadmap, built on top of the [long-term memory ag
           (or the 10-K for a fiscal_year, e.g. 2021)
         ↓ first time only: download, convert HTML to text,
           split into Part/Item sections, chunk, embed, store    (filings_store.py → filings_db/)
-        ↓ embed the query, return the 5 most similar chunks from that filing
+        ↓ embed the query, take the 5 most similar chunks from that filing,
+          then re-order them with BM25 keyword scores (hybrid search)
     ↓ answer from those passages, citing "10-K filed 2025-10-31, Item 1A. Risk Factors"
 ```
 
@@ -32,6 +33,7 @@ This is step 5 of the learning roadmap, built on top of the [long-term memory ag
 - **Older filings by fiscal year.** `fiscal_year` is the year the reporting period ended (Apple's year ending September 2021 is 2021; NVIDIA's year ending January 2025 is 2025). To compare years, the agent searches each year with the same query and says which period each point comes from.
 - **Chunks follow the filing's structure.** Chunks are about 1,000 characters, which is what the embedding model reads in full. They overlap by about 200 characters and never cross a section boundary. Each chunk is tagged with its section, e.g. `Part I — Item 1A. Risk Factors`, and the heading is embedded with the text, so a search for "risk factors" favours risk chunks.
 - **The company's name is removed from the search.** The search only covers that company's filing, so its name adds nothing to the query. It would also pull results toward boilerplate that repeats the name. The name and ticker are removed first, e.g. "What risks does NVIDIA cite?" becomes "What risks does cite?".
+- **Hybrid search: meaning first, keywords to re-order.** Vector search finds the 5 chunks closest in meaning. BM25 keyword search then scores those same 5 chunks, and the two rankings are merged with reciprocal rank fusion (RRF). A chunk that ranks high in both moves to the top. BM25 rewards rare exact words, such as "Epic", "repurchased" or "Greater China", which embeddings blur. Question-framing words ("describe", "fiscal", the year) are left out of the keyword query, because they appear throughout the filing. BM25 is implemented in `filings_store.py` (about 40 lines, no extra dependency).
 - **Hidden XBRL data is removed.** Modern filings embed machine-readable tags; these are stripped so only the readable document is indexed.
 - **Same local embedding model** as long-term memory (`all-MiniLM-L6-v2`). No extra API key or cost.
 
@@ -168,6 +170,7 @@ python evals/run_answer_evals.py --compare evals/results/answers_baseline.json
 ```bash
 python evals/run_retrieval_evals.py                                          # report, k=5
 python evals/run_retrieval_evals.py --save evals/results/retrieval_run.json  # also save as JSON
+python evals/run_retrieval_evals.py --split dev --search-mode vector          # iterate on dev only
 ```
 
 - **Gold set:** `evals/filings_gold.json` holds 37 paraphrased questions over five pinned filings: Apple 10-Ks for fiscal 2008, 2021 and 2025, NVIDIA's fiscal 2025 10-K, and an Apple 10-Q. There are also 3 lookups that should fail. Each question lists:
@@ -176,6 +179,7 @@ python evals/run_retrieval_evals.py --save evals/results/retrieval_run.json  # a
   - The expected sections, and the key facts the answer eval checks.
 
   The answer eval also uses 8 unanswerable questions: answers that aren't in the filing, false premises, and a filing that doesn't exist.
+- **Dev and test questions:** each question is marked `dev` (25) or `test` (12). The test set is a third of each filing's questions, chosen with a fixed random seed. Tune on dev with `--split dev`, and check test only to confirm a change generalises. Otherwise the search gets tuned to the exact questions being measured.
 - **Gold check:** every snippet and every relevant passage is checked against the indexed chunks before scoring. A typo in the gold set is reported as invalid gold, not counted as a retrieval miss.
 - **Index:** the filings are indexed once into `evals/filings_db/` (gitignored). Delete that folder after changing chunking.
 - **Compare runs:** `--compare <saved json>` shows each metric's change and lists the questions whose rank moved.
@@ -223,11 +227,32 @@ How to read them:
 | `retrieval_baseline.json` | 0.35 | 0.57 | 0.43 | – | – | – | 0.10 |
 | `retrieval_strip_company.json`: company name removed from queries | 0.32 | **0.92** | **0.53** | – | – | – | **0.90** |
 | `retrieval_recall_precision.json`: same search, new metrics | 0.32 | 0.92 | 0.53 | 0.82 | 0.21 | 0.47 | 0.90 |
+| `retrieval_vector_split.json`: same search, with dev/test split | 0.32 | 0.92 | 0.53 | 0.82 | 0.21 | 0.47 | 0.90 |
+| `retrieval_hybrid_rerank.json`: **hybrid search, BM25 re-orders the vector top 5** | **0.46** | 0.92 | **0.63** | 0.82 | 0.21 | **0.56** | 0.90 |
 
 - **Company name:** the company's name in a question pulled the search toward boilerplate that repeats it ("All references to NVIDIA ..."). The name and ticker are now removed before searching.
 - **Multi-part questions are the weak spot.** For the 10 multi-part questions, hit@5 is 0.90 but **recall@5 is only 0.52**, and MAP is 0.22: search usually finds one part of the answer and misses about half of the rest. In `aaplq_legal`, the top passage was "Other Legal Proceedings" (a hit), but none of the three cases asked about (Epic, DOJ, DMA) were retrieved, so recall was 0. For the 27 single-part questions, recall@5 = hit@5 = 0.93.
 - **Precision@5 is about 0.21:** roughly one passage in five is relevant.
-- **Next gaps:** ranking the best passage first (hit@1, MAP), and retrieving every part of a multi-part answer (recall). Options include a reranker, keyword search alongside vector search, or more passages per search for broad questions.
+- **Hybrid search improved ranking without losing anything.** hit@1 rose from 0.32 to 0.46 and MAP from 0.47 to 0.56, while hit@5 and recall@5 were unchanged. Dev improved more than test (hit@1 +0.16 vs. +0.08), as expected for a setting chosen on dev. Test still moved the same way, with no losses.
+- **Next gap: multi-part recall (0.52).** Keyword search did not fix it in any variant, so the next things to try are more passages for broad questions, a cross-encoder reranker over a larger candidate set, or having the agent search once per part.
+
+#### Experiment log: hybrid search
+
+Each variant was measured on the 25 dev questions only. Test was checked once, for the chosen variant.
+
+| Dev variant | hit@1 | MRR@5 | MAP@5 | hit@5 | recall@5 | Verdict |
+|---|---|---|---|---|---|---|
+| Vector only | 0.28 | 0.49 | 0.43 | 0.88 | 0.79 | Starting point |
+| Fuse vector top 20 + BM25 top 20, equal weight | 0.44 | 0.59 | 0.53 | 0.76 | 0.68 | Ranks better, but 3 answers drop out of the top 5 |
+| + question-framing words left out of the BM25 query | 0.48 | 0.61 | 0.55 | 0.76 | 0.71 | Helps in every variant, so kept |
+| + BM25 at half weight | **0.52** | **0.62** | **0.56** | 0.76 | 0.71 | Best ranking, still loses 3 answers |
+| **BM25 re-orders only the vector top 5** | 0.44 | 0.60 | 0.54 | **0.88** | **0.79** | **Chosen: better ranking, nothing lost** |
+| BM25 re-orders the vector top 8 or 10 | 0.48 | 0.61 | 0.54 | 0.76 | 0.69 | Loses the same 3 answers |
+
+What the losses taught:
+- **The three lost questions use different words from the filing.** "Which companies manufacture chips?" against "foundries… produce our semiconductor wafers", and "how many people work" against "employees". For those, BM25's top matches were noise, and chunks that both methods ranked moderately pushed the right answer out.
+- **Keyword search helps ranking, not coverage.** Every gain was a passage vector search had already found, moved higher. So the safe design is to let BM25 re-order vector search's results rather than add to them.
+- **For an agent that reads all 5 passages, missing a passage is worse than ranking it 3rd.** That's why the chosen variant gives up some hit@1 to keep hit@5.
 
 ## Cost per Query
 

@@ -29,6 +29,10 @@ Usage:
     python evals/run_retrieval_evals.py --k 8 --type risk
     python evals/run_retrieval_evals.py --save evals/results/retrieval_baseline.json
     python evals/run_retrieval_evals.py --compare evals/results/retrieval_baseline.json
+    python evals/run_retrieval_evals.py --split dev --search-mode vector   # iterate on dev only
+
+Dev and test: iterate on the "dev" questions; check "test" only to confirm a change generalises, so the
+search is not tuned to the specific questions being measured.
 """
 
 import argparse
@@ -99,6 +103,7 @@ def run_case(case: dict, filing: dict, k: int) -> dict:
         "id": case["id"],
         "type": case["type"],
         "filing": case["filing"],
+        "split": case.get("split", "dev"),
         "parts": "multi-part" if len(groups) > 1 else "single",
         "rank": rank,
         **score_passages(passages, groups, k),
@@ -139,17 +144,25 @@ def main() -> None:
     parser.add_argument("--type", help="only run cases of this question type, e.g. risk")
     parser.add_argument("--save", help="write the full results as JSON to this path")
     parser.add_argument("--compare", help="a saved results JSON (e.g. the baseline) to show changes against")
+    parser.add_argument("--split", choices=["all", "dev", "test"], default="all",
+                        help="which questions to run (default all, reported per split)")
+    parser.add_argument("--search-mode", choices=["vector", "hybrid"], default=None,
+                        help=f"override filings_store.SEARCH_MODE (currently {filings_store.SEARCH_MODE})")
     args = parser.parse_args()
 
     with open(GOLD_PATH) as f:
         gold = json.load(f)
     cases = [c for c in gold["cases"] if not args.type or c["type"] == args.type]
+    if args.split != "all":
+        cases = [c for c in cases if c.get("split", "dev") == args.split]
 
     filings_store.FILINGS_DIR = EVAL_FILINGS_DIR
     filings_store.reset()
+    if args.search_mode:
+        filings_store.SEARCH_MODE = args.search_mode
 
     print("=" * 72)
-    print("Retrieval Eval — RAG over SEC filings")
+    print(f"Retrieval Eval — RAG over SEC filings (search: {filings_store.SEARCH_MODE}, questions: {args.split})")
     print("=" * 72)
 
     print("\nFiling lookup (first run downloads and indexes each filing):")
@@ -182,6 +195,7 @@ def main() -> None:
     by_type = summarize_by(results, "type", args.k)
     by_filing = summarize_by(results, "filing", args.k)
     by_parts = summarize_by(results, "parts", args.k)
+    by_split = summarize_by(results, "split", args.k)
 
     before = {}
     if args.compare:
@@ -192,7 +206,11 @@ def main() -> None:
             before = {}
 
     print("\nRetrieval" + (f" (change vs {os.path.basename(args.compare)})" if before else "") + ":")
-    print_metrics("OVERALL", overall, args.k, before.get("overall"))
+    # a dev-only or test-only run is compared with the same split of the saved results, not their overall
+    before_overall = before.get("overall") if args.split == "all" else before.get("by_split", {}).get(args.split)
+    print_metrics("OVERALL", overall, args.k, before_overall)
+    for name, metrics in by_split.items():
+        print_metrics(f"  {name}", metrics, args.k, before.get("by_split", {}).get(name))
     print("\n  By question type:")
     for name, metrics in by_type.items():
         print_metrics(name, metrics, args.k, before.get("by_type", {}).get(name))
@@ -249,6 +267,8 @@ def main() -> None:
             json.dump({
                 "run_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                 "k": args.k,
+                "search_mode": filings_store.SEARCH_MODE,
+                "split": args.split,
                 "chunk_chars": filings_store.CHUNK_CHARS,
                 "overlap_chars": filings_store.OVERLAP_CHARS,
                 "filings": {
@@ -259,6 +279,7 @@ def main() -> None:
                 "by_type": by_type,
                 "by_filing": by_filing,
                 "by_parts": by_parts,
+                "by_split": by_split,
                 "cases": results,
                 "invalid_gold": invalid,
                 "gold_section_warnings": gold_warnings,

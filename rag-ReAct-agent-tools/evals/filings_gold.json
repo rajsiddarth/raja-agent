@@ -1,5 +1,5 @@
 {
-  "_about": "Gold set for evals/run_retrieval_evals.py (cases, error_cases) and evals/run_answer_evals.py (cases with key_facts and exact_facts, plus unanswerable_cases). Each case is pinned to one filing (by fiscal year) so new filings never change the expected answer. A retrieved passage is a hit if it contains any gold snippet (case, whitespace and curly quotes ignored). gold_sections are substrings of the expected section label. Questions are paraphrased on purpose: copying the filing's wording would flatter retrieval. key_facts are graded by the LLM judge; exact_facts are strings checked in code. relevant (optional) lists every distinct passage a complete answer needs, each as a group of alternative snippets; it drives recall@k, precision@k and MAP@k. Cases without it count gold_snippets as their one relevant group.",
+  "_about": "Gold set for evals/run_retrieval_evals.py (cases, error_cases) and evals/run_answer_evals.py (cases with key_facts and exact_facts, plus unanswerable_cases). Each case is pinned to one filing (by fiscal year) so new filings never change the expected answer. A retrieved passage is a hit if it contains any gold snippet (case, whitespace and curly quotes ignored). gold_sections are substrings of the expected section label. Questions are paraphrased on purpose: copying the filing's wording would flatter retrieval. key_facts are graded by the LLM judge; exact_facts are strings checked in code. relevant (optional) lists every distinct passage a complete answer needs, each as a group of alternative snippets; it drives recall@k, precision@k and MAP@k. Cases without it count gold_snippets as their one relevant group. split: 'dev' cases are for iterating on retrieval; 'test' cases (a third of each filing's questions, chosen with a fixed random seed) are only checked to confirm a change generalises.",
   "filings": {
     "AAPL-10K-2025": {
       "symbol": "AAPL",
@@ -37,6 +37,7 @@
       "id": "aapl25_manufacturing_locations",
       "filing": "AAPL-10K-2025",
       "type": "supply_chain",
+      "split": "test",
       "question": "Where is most of Apple's manufacturing done, and which countries does it depend on?",
       "gold_snippets": [
         "manufacturing is performed in whole or in part by outsourcing partners located primarily in China mainland",
@@ -60,6 +61,7 @@
       "id": "aapl25_tariffs",
       "filing": "AAPL-10K-2025",
       "type": "risk",
+      "split": "test",
       "question": "How have the new US import tariffs affected Apple's results?",
       "gold_snippets": [
         "new U.S. Tariffs were announced",
@@ -87,6 +89,7 @@
       "id": "aapl25_competition",
       "filing": "AAPL-10K-2025",
       "type": "competition",
+      "split": "test",
       "question": "How does Apple describe the competitive environment its products face?",
       "gold_snippets": [
         "characterized by aggressive price competition, downward pressure on gross margins"
@@ -106,6 +109,7 @@
       "id": "aapl25_segments",
       "filing": "AAPL-10K-2025",
       "type": "business",
+      "split": "dev",
       "question": "What are Apple's reportable business segments?",
       "gold_snippets": [
         "reportable segments consist of the Americas, Europe, Greater China, Japan and Rest of Asia Pacific"
@@ -130,6 +134,7 @@
       "id": "aapl25_epic",
       "filing": "AAPL-10K-2025",
       "type": "legal",
+      "split": "test",
       "question": "What is happening in Apple's court fight with Epic Games?",
       "gold_snippets": [
         "Epic Games, Inc. filed a lawsuit"
@@ -148,6 +153,7 @@
       "id": "aapl25_doj",
       "filing": "AAPL-10K-2025",
       "type": "legal",
+      "split": "dev",
       "question": "What antitrust case has the US government brought against Apple?",
       "gold_snippets": [
         "civil antitrust lawsuit in the U.S. District Court for the District of New Jersey"
@@ -167,6 +173,7 @@
       "id": "aapl25_dma",
       "filing": "AAPL-10K-2025",
       "type": "legal",
+      "split": "dev",
       "question": "How is European regulation forcing Apple to change how apps are distributed and paid for?",
       "gold_snippets": [
         "Digital Markets Act"
@@ -187,6 +194,7 @@
       "id": "aapl25_gross_margin",
       "filing": "AAPL-10K-2025",
       "type": "mdna",
+      "split": "dev",
       "question": "Why did Apple's hardware gross margin percentage change in fiscal 2025?",
       "gold_snippets": [
         "Products gross margin percentage decreased during 2025 compared to 2024"
@@ -204,6 +212,7 @@
       "id": "aapl25_cyber_owner",
       "filing": "AAPL-10K-2025",
       "type": "governance",
+      "split": "dev",
       "question": "Who at Apple is responsible for managing cybersecurity risk?",
       "gold_snippets": [
         "led by its Head of Corporate Information Security"
@@ -222,6 +231,7 @@
       "id": "aapl25_headcount",
       "filing": "AAPL-10K-2025",
       "type": "business",
+      "split": "dev",
       "question": "How many people does Apple employ?",
       "gold_snippets": [
         "approximately 166,000 full-time equivalent employees"
@@ -240,6 +250,7 @@
       "id": "aapl25_buybacks",
       "filing": "AAPL-10K-2025",
       "type": "capital",
+      "split": "dev",
       "question": "How much stock did Apple buy back in fiscal 2025, and what new buyback was authorized?",
       "gold_snippets": [
         "new share repurchase program of up to $100 billion",
@@ -270,6 +281,7 @@
       "id": "aapl25_seasonality",
       "filing": "AAPL-10K-2025",
       "type": "business",
+      "split": "dev",
       "question": "Is Apple's revenue seasonal, and which quarter is usually strongest?",
       "gold_snippets": [
         "higher net sales in its first quarter compared to other quarters"
@@ -287,6 +299,7 @@
       "id": "aapl21_pandemic",
       "filing": "AAPL-10K-2021",
       "type": "risk",
+      "split": "dev",
       "question": "How did the pandemic affect Apple's operations in fiscal 2021?",
       "gold_snippets": [
         "aspects of the Company's business continued to be affected by the COVID-19 pandemic",
@@ -314,6 +327,7 @@
       "id": "aapl21_supply_chain",
       "filing": "AAPL-10K-2021",
       "type": "supply_chain",
+      "split": "dev",
       "question": "What supply chain risks did Apple describe in fiscal 2021?",
       "gold_snippets": [
         "single-source outsourcing partners in the U.S., Asia and Europe",
@@ -344,6 +358,7 @@
       "id": "aapl21_iphone_growth",
       "filing": "AAPL-10K-2021",
       "type": "mdna",
+      "split": "dev",
       "question": "Why did iPhone revenue grow in fiscal 2021?",
       "gold_snippets": [
         "iPhone net sales increased during 2021 compared to 2020"
@@ -361,6 +376,7 @@
       "id": "aapl21_services_growth",
       "filing": "AAPL-10K-2021",
       "type": "mdna",
+      "split": "test",
       "question": "What drove growth in Apple's services business in 2021?",
       "gold_snippets": [
         "Services net sales increased during 2021 compared to 2020"
@@ -378,6 +394,7 @@
       "id": "aapl21_fiscal_year_end",
       "filing": "AAPL-10K-2021",
       "type": "accounting",
+      "split": "test",
       "question": "When does Apple's fiscal year end?",
       "gold_snippets": [
         "52- or 53-week period that ends on the last Saturday of September"
@@ -397,6 +414,7 @@
       "id": "aapl08_iphone_accounting",
       "filing": "AAPL-10K-2008",
       "type": "accounting",
+      "split": "test",
       "question": "How did Apple recognize revenue from iPhone sales in 2008?",
       "gold_snippets": [
         "subscription accounting in accordance with SOP No. 97-2",
@@ -426,6 +444,7 @@
       "id": "aapl08_single_source",
       "filing": "AAPL-10K-2008",
       "type": "supply_chain",
+      "split": "dev",
       "question": "Why was relying on a few component suppliers a risk for Apple in 2008?",
       "gold_snippets": [
         "from single or limited sources, the Company is subject to significant supply and pricing risks",
@@ -445,6 +464,7 @@
       "id": "aapl08_final_assembly",
       "filing": "AAPL-10K-2008",
       "type": "supply_chain",
+      "split": "dev",
       "question": "Who assembled Apple's laptops, iPods and iPhones in 2008?",
       "gold_snippets": [
         "Sole-sourced third-party vendors in China perform final assembly"
@@ -465,6 +485,7 @@
       "id": "aapl08_mac_growth",
       "filing": "AAPL-10K-2008",
       "type": "mdna",
+      "split": "dev",
       "question": "How much did Mac revenue grow in fiscal 2008?",
       "gold_snippets": [
         "Mac net sales increased $4.0 billion or 38% during 2008"
@@ -484,6 +505,7 @@
       "id": "aapl08_mobile_competition",
       "filing": "AAPL-10K-2008",
       "type": "competition",
+      "split": "dev",
       "question": "What competition did Apple face in mobile phones in 2008?",
       "gold_snippets": [
         "The mobile communications industry is highly competitive"
@@ -501,6 +523,7 @@
       "id": "aapl08_ipod_nano",
       "filing": "AAPL-10K-2008",
       "type": "business",
+      "split": "test",
       "question": "What was new about the iPod nano released in 2008?",
       "gold_snippets": [
         "introduced the new iPod nano, a flash-memory-based iPod"
@@ -518,6 +541,7 @@
       "id": "nvda25_export_controls",
       "filing": "NVDA-10K-2025",
       "type": "risk",
+      "split": "dev",
       "question": "How have US restrictions on chip sales to China affected NVIDIA?",
       "gold_snippets": [
         "shifting and expanding export control restrictions",
@@ -546,6 +570,7 @@
       "id": "nvda25_ai_diffusion",
       "filing": "NVDA-10K-2025",
       "type": "risk",
+      "split": "test",
       "question": "What is the AI Diffusion rule and why does it matter to NVIDIA?",
       "gold_snippets": [
         "published the \"AI Diffusion\" IFR",
@@ -577,6 +602,7 @@
       "id": "nvda25_competitors",
       "filing": "NVDA-10K-2025",
       "type": "competition",
+      "split": "dev",
       "question": "Which companies does NVIDIA consider its competitors?",
       "gold_snippets": [
         "such as Advanced Micro Devices, Inc., or AMD, Huawei Technologies Co. Ltd."
@@ -605,6 +631,7 @@
       "id": "nvda25_foundries",
       "filing": "NVDA-10K-2025",
       "type": "supply_chain",
+      "split": "dev",
       "question": "Which companies manufacture NVIDIA's chips?",
       "gold_snippets": [
         "We utilize foundries, such as Taiwan Semiconductor Manufacturing Company Limited"
@@ -624,6 +651,7 @@
       "id": "nvda25_customer_concentration",
       "filing": "NVDA-10K-2025",
       "type": "risk",
+      "split": "test",
       "question": "How dependent is NVIDIA on a handful of large customers?",
       "gold_snippets": [
         "Sales to direct Customers A, B and C represented 12%, 11% and 11% of total revenue"
@@ -644,6 +672,7 @@
       "id": "nvda25_segments",
       "filing": "NVDA-10K-2025",
       "type": "business",
+      "split": "dev",
       "question": "How does NVIDIA split its business into reporting segments?",
       "gold_snippets": [
         "Our two operating segments are",
@@ -674,6 +703,7 @@
       "id": "nvda25_datacenter_growth",
       "filing": "NVDA-10K-2025",
       "type": "mdna",
+      "split": "dev",
       "question": "How fast did NVIDIA's data center revenue grow in fiscal 2025, and why?",
       "gold_snippets": [
         "Data Center revenue for fiscal year 2025 was up 142% from a year ago"
@@ -693,6 +723,7 @@
       "id": "nvda25_blackwell",
       "filing": "NVDA-10K-2025",
       "type": "business",
+      "split": "dev",
       "question": "What is NVIDIA's Blackwell platform?",
       "gold_snippets": [
         "we launched the NVIDIA Blackwell architecture"
@@ -712,6 +743,7 @@
       "id": "nvda25_securities_lawsuit",
       "filing": "NVDA-10K-2025",
       "type": "legal",
+      "split": "test",
       "question": "What lawsuit from shareholders is NVIDIA defending?",
       "gold_snippets": [
         "defending a securities class action lawsuit"
@@ -730,6 +762,7 @@
       "id": "nvda25_headcount",
       "filing": "NVDA-10K-2025",
       "type": "business",
+      "split": "dev",
       "question": "How many people work at NVIDIA and where?",
       "gold_snippets": [
         "approximately 36,000 employees in 38 countries"
@@ -748,6 +781,7 @@
       "id": "aaplq_iphone",
       "filing": "AAPL-10Q-2025",
       "type": "mdna",
+      "split": "dev",
       "question": "Why did iPhone sales rise in Apple's December 2025 quarter?",
       "gold_snippets": [
         "iPhone net sales increased during the first quarter of 2026"
@@ -765,6 +799,7 @@
       "id": "aaplq_mac",
       "filing": "AAPL-10Q-2025",
       "type": "mdna",
+      "split": "dev",
       "question": "Why did Mac revenue fall in the December 2025 quarter?",
       "gold_snippets": [
         "Mac net sales decreased during the first quarter of 2026"
@@ -782,6 +817,7 @@
       "id": "aaplq_buyback",
       "filing": "AAPL-10Q-2025",
       "type": "capital",
+      "split": "test",
       "question": "How much stock did Apple repurchase in the quarter ending December 2025?",
       "gold_snippets": [
         "During the first quarter of 2026, the Company repurchased $25.0 billion"
@@ -800,6 +836,7 @@
       "id": "aaplq_legal",
       "filing": "AAPL-10Q-2025",
       "type": "legal",
+      "split": "dev",
       "question": "What legal matters did Apple disclose in its quarterly report for the December 2025 quarter?",
       "gold_snippets": [
         "Epic Games, Inc. filed a lawsuit",
