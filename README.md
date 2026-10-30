@@ -55,6 +55,8 @@ python agent.py                 # command-line chat
 streamlit run app.py            # web UI
 ```
 
+In step 5, each answer also shows its Claude API cost, e.g. `💲 $0.048 · 3 API calls · 15,195 in / 1,134 out tokens`. A typical filing question costs about $0.05. The CLI prints a running total for the session, and the Streamlit sidebar shows it. Only Claude calls cost money: embeddings, SEC EDGAR and yfinance are free. See [Cost per Query](rag-ReAct-agent-tools/README.md#cost-per-query).
+
 ## Tests and evals
 
 Every step has offline unit tests that make no network calls. Steps 2 to 5 also have a live eval suite that calls the Claude API.
