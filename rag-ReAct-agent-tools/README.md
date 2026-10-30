@@ -44,6 +44,7 @@ rag-ReAct-agent-tools/
 ├── filings_store.py  # Sections, chunking, indexing and search over filings
 ├── memory.py         # JSON session persistence
 ├── memory_store.py   # Long-term memory across sessions
+├── costs.py          # Token usage and $ cost per query
 ├── tools.py          # yfinance tools + recall_memory + search_filings
 ├── backfill.py       # Load existing session JSON files into memory
 ├── app.py            # Streamlit UI: sessions, memory count, indexed filings
@@ -88,6 +89,31 @@ python -m pytest -q tests     # offline, fast
 python evals/run_evals.py     # live agent; memory and filings go to temp folders
 ```
 
+### Answer eval (live agent + LLM judge)
+
+`evals/run_answer_evals.py` runs the live agent on the same gold set and grades its final answers. It costs real money: about $0.10 per case, so roughly $4–5 for the full set.
+
+```bash
+python evals/run_answer_evals.py --limit 3                                    # smoke test
+python evals/run_answer_evals.py --save evals/results/answers_baseline.json   # full run
+python evals/run_answer_evals.py --compare evals/results/answers_baseline.json
+```
+
+| Metric | Question it answers | Graded by |
+|---|---|---|
+| `correct`, `key_fact_coverage` | Does the answer contain the key facts? | Judge |
+| `exact_fact_rate` | Do exact figures and names appear (e.g. `$89.3 billion`)? | Code |
+| `faithfulness`, `fully_grounded` | Is every claim supported by what the tools returned? | Judge |
+| `citation_present`, `filing_identified`, `item_validity` | Does it cite the form, the filing and only sections it retrieved? | Code |
+| `citation_support` | Does each cited section back the claim attributed to it? | Judge |
+| `correct_abstention`, `answered_unanswerable` | On 8 unanswerable questions, does it say so instead of answering? | Judge |
+| `false_abstention` | Does it wrongly refuse questions it could answer? | Judge |
+
+- **The judge** is `claude-opus-5-5`, a different, stronger model than the agent (`claude-sonnet-4-6`). It returns schema-validated JSON and sees only what the agent's tools returned that turn, so "supported" means "supported by what the agent read". Refusals fall back to another model server-side.
+- **Attribution:** each answerable case is classified by whether a gold passage was retrieved and whether the answer was correct, which shows whether a failure came from retrieval or from the answer step.
+- **Calibrate the judge before trusting it.** `--export-labels evals/results/judge_labels.json` writes answers with the judge's labels and blank fields for your own. Label about 20 answers, then run `python evals/calibrate_judge.py evals/results/judge_labels.json` to see agreement and every disagreement.
+- `--runs 3` repeats the set and shows the min–max spread, because agent answers vary from run to run.
+
 ### Retrieval eval
 
 `evals/run_retrieval_evals.py` measures retrieval alone: whether `search_filings` returns the right passages. It makes no Claude calls.
@@ -97,7 +123,7 @@ python evals/run_retrieval_evals.py                                          # r
 python evals/run_retrieval_evals.py --save evals/results/retrieval_run.json  # also save as JSON
 ```
 
-- **Gold set:** `evals/retrieval_gold.json` holds 37 paraphrased questions over five pinned filings (Apple 10-Ks for fiscal 2008, 2021 and 2025, NVIDIA's fiscal 2025 10-K, and an Apple 10-Q), plus 3 lookups that should fail. Each question lists verbatim snippets from the filing and the expected sections.
+- **Gold set:** `evals/filings_gold.json` holds 37 paraphrased questions over five pinned filings (Apple 10-Ks for fiscal 2008, 2021 and 2025, NVIDIA's fiscal 2025 10-K, and an Apple 10-Q), plus 3 lookups that should fail. Each question lists verbatim snippets from the filing, the expected sections, and the key facts the answer eval checks. The answer eval also uses 8 unanswerable questions: answers that aren't in the filing, false premises, and a filing that doesn't exist.
 - **Metrics:** filing lookup, hit@1/3/k, MRR@k and section@1, shown overall, per question type and per filing. A passage counts as a hit if it contains a gold snippet.
 - **Gold check:** every snippet is checked against the indexed chunks before scoring. A typo in the gold set is reported as invalid gold, not counted as a retrieval miss.
 - **Index:** the filings are indexed once into `evals/filings_db/` (gitignored). Delete that folder after changing chunking.
@@ -110,6 +136,16 @@ python evals/run_retrieval_evals.py --save evals/results/retrieval_run.json  # a
   | `retrieval_strip_company.json`: company name removed from queries | 0.32 | **0.92** | **0.53** | **0.90** |
 
   The company's name in a question pulled the search toward boilerplate that repeats it ("All references to NVIDIA ..."), so the name and ticker are now removed before searching. Ranking the best passage first (hit@1) is the next gap to close.
+
+## Cost per Query
+
+Each answer shows what it cost, e.g. `💲 $0.048 · 3 API calls · 15,195 in / 1,134 out tokens`. The CLI also prints the running total for the session, and the Streamlit sidebar shows it.
+
+- **Only Claude calls cost money.** Embeddings (local MiniLM), SEC EDGAR and yfinance are free.
+- **One question means several API calls.** The `think` step, each tool call and the final answer are separate calls, and each one resends the whole conversation so far: system prompt, tool definitions, history and tool results. So input tokens dominate the cost.
+- **Typical cost.** In the answer eval, a filing question cost a median of about $0.05: $0.03 for a single lookup, $0.09 for questions needing several searches, and up to $0.17 for one that needed 6 tool calls.
+- **Cost grows over a session.** Each new question resends the earlier ones in that session.
+- **Where it's computed:** `costs.py` holds the prices. `run_agent(..., on_usage=callback)` reports the turn's token totals and `cost_usd` once the turn ends.
 
 ## Available Tools
 

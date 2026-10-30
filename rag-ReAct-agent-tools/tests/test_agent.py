@@ -146,3 +146,29 @@ def test_refusal_returns_friendly_message(mock_client):
     reply, _ = run_agent("Some refused question", [])
     assert "market data" in reply.lower()
     assert "(stopped: refusal)" not in reply
+
+
+# ---------------------------------------------------------------------------
+# Usage and cost
+# ---------------------------------------------------------------------------
+
+@patch("agent.client")
+def test_on_usage_reports_totals_across_the_turn(mock_client):
+    """Token usage is summed over every API call in the turn and reported once, with its cost."""
+    from types import SimpleNamespace
+
+    first = make_tool_response("get_quote", {"symbol": "AAPL"})
+    first.usage = SimpleNamespace(input_tokens=5000, output_tokens=200)
+    second = make_text_response("Apple is at $150.")
+    second.usage = SimpleNamespace(input_tokens=6000, output_tokens=300)
+    mock_client.messages.create.side_effect = [first, second]
+
+    reports = []
+    with patch("agent.TOOL_HANDLERS", {"get_quote": lambda _: {"price": 150.0}}), patch("agent.MODEL", "claude-sonnet-4-6"):
+        run_agent("What is Apple's price?", [], on_usage=reports.append)
+
+    assert len(reports) == 1
+    usage = reports[0]
+    assert usage["api_calls"] == 2
+    assert usage["input_tokens"] == 11000 and usage["output_tokens"] == 500
+    assert usage["cost_usd"] == pytest.approx((11000 * 3 + 500 * 15) / 1e6)

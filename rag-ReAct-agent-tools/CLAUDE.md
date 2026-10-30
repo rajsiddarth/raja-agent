@@ -7,6 +7,7 @@ A finance agent that uses the **ReAct pattern** + **long-term memory** + **RAG o
 - `agent.py` — ReAct agent loop with think tool + session load/save + stores each turn
 - `memory.py` — JSON-based session persistence (load, save, list, delete)
 - `memory_store.py` — ChromaDB long-term memory (extract turns, store, search)
+- `costs.py` — Token usage totals and dollar cost per model (prices, cache multipliers, UI formatting)
 - `edgar.py` — SEC EDGAR client (ticker → CIK, find a 10-K/10-Q by recency or fiscal year, HTML → text)
 - `filings_store.py` — Filing RAG: split sections, chunk, index (ChromaDB), search
 - `tools.py` — Tool definitions and handlers (yfinance + `recall_memory` + `search_filings`)
@@ -76,8 +77,10 @@ search_filings(symbol, query, form="10-K", fiscal_year=None)
 ## Evals
 
 - `evals/run_evals.py` runs the live agent and checks the think step, the tools called and expected strings (it calls the Claude API).
-- `evals/run_retrieval_evals.py` measures retrieval only, with no Claude calls. The gold set is `evals/retrieval_gold.json`, and the scoring lives in `evals/retrieval_metrics.py` (unit-tested).
+- `evals/run_retrieval_evals.py` measures retrieval only, with no Claude calls. The gold set is `evals/filings_gold.json`, and the scoring lives in `evals/retrieval_metrics.py` (unit-tested).
 - Gold cases are pinned to a filing by `fiscal_year`. Snippets are verbatim from the filing, and questions are paraphrased.
+- `evals/run_answer_evals.py` runs the live agent plus an LLM judge (`evals/judge.py`, `claude-opus-5-5`, structured JSON output, `fallbacks: "default"`). Code-checked metrics are in `evals/answer_metrics.py`, and judge calibration is in `evals/calibrate_judge.py`. Each case costs ~$0.10. Gold questions are pinned to their filing by appending "(Use <SYMBOL>'s <form> for fiscal year <year>.)".
+- The answer runner aborts on account errors (no credit, bad key) and refuses to save a partial run as results.
 - Run the retrieval eval before and after any change to chunking or search. Use `--compare` against the latest file in `evals/results/` and save each accepted change as a new results file.
 
 ## How ReAct Works
@@ -116,6 +119,7 @@ Note: `claude-opus-5-5` refuses financial data questions — use `claude-sonnet-
 - Type hints on all function parameters and return values
 - `on_think` callback surfaces reasoning to the UI
 - `on_tool_call` callback surfaces tool calls to the UI
+- `on_usage` callback reports the turn's token totals and `cost_usd` (summed over all API calls in the turn; prices in `costs.py`)
 - History saved after every turn — never lose a conversation
 - A long-term memory failure must never break the chat — warn and continue
 - Filing answers must come from retrieved passages and cite form, filing date and section
