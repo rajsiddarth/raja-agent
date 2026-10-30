@@ -7,6 +7,7 @@ A finance agent that uses the **ReAct pattern** + **long-term memory** + **RAG o
 - `agent.py` — ReAct agent loop with think tool + session load/save + stores each turn
 - `memory.py` — JSON-based session persistence (load, save, list, delete)
 - `memory_store.py` — ChromaDB long-term memory (extract turns, store, search)
+- `costs.py` — Token usage totals and dollar cost per model (prices, cache multipliers, UI formatting)
 - `edgar.py` — SEC EDGAR client (ticker → CIK, find a 10-K/10-Q by recency or fiscal year, HTML → text)
 - `filings_store.py` — Filing RAG: split sections, chunk, index (ChromaDB), search
 - `tools.py` — Tool definitions and handlers (yfinance + `recall_memory` + `search_filings`)
@@ -118,6 +119,7 @@ Note: `claude-opus-5-5` refuses financial data questions — use `claude-sonnet-
 - Type hints on all function parameters and return values
 - `on_think` callback surfaces reasoning to the UI
 - `on_tool_call` callback surfaces tool calls to the UI
+- `on_usage` callback reports the turn's token totals and `cost_usd` (summed over all API calls in the turn; prices in `costs.py`)
 - History saved after every turn — never lose a conversation
 - A long-term memory failure must never break the chat — warn and continue
 - Filing answers must come from retrieved passages and cite form, filing date and section

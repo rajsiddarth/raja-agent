@@ -60,6 +60,7 @@ import anthropic
 import agent
 import filings_store
 import memory_store
+from costs import cost_usd, new_usage
 from answer_metrics import (
     attribution, citation_checks, evidence_text, exact_fact_rate, filing_searches, retrieval_hit, summarize,
     tool_calls,
@@ -69,16 +70,12 @@ from judge import JUDGE_MODEL, JudgeError, judge_answer
 GOLD_PATH = os.path.join(EVALS_DIR, "filings_gold.json")
 EVAL_FILINGS_DIR = os.path.join(EVALS_DIR, "filings_db")
 
-# $ per million tokens (input, output); used only for the cost estimate printed at the end
-PRICES = {"claude-sonnet-4-6": (3.00, 15.00), "claude-opus-5-5": (4.00, 20.00)}
-
 HEADLINE = [
     "correct", "key_fact_coverage", "exact_fact_rate", "faithfulness", "fully_grounded", "citation_present",
     "filing_identified", "item_validity", "citation_support", "false_abstention", "filing_ok", "retrieval_hit",
     "correct_abstention",
 ]
 
-_local = threading.local()
 # set when the API rejects the account itself (no credit, bad key): later cases are skipped, not run
 _abort = threading.Event()
 
@@ -87,21 +84,6 @@ def _is_account_error(exc: Exception) -> bool:
     if isinstance(exc, (anthropic.AuthenticationError, anthropic.PermissionDeniedError)):
         return True
     return isinstance(exc, anthropic.BadRequestError) and "credit balance" in str(exc)
-
-
-def _track_agent_usage() -> None:
-    """Wrap the agent's client so each case can count the tokens its agent turn used."""
-    create = agent.client.messages.create
-
-    def counting_create(**kwargs):
-        response = create(**kwargs)
-        usage = getattr(_local, "usage", None)
-        if usage is not None:
-            usage["input_tokens"] += response.usage.input_tokens
-            usage["output_tokens"] += response.usage.output_tokens
-        return response
-
-    agent.client.messages.create = counting_create
 
 
 def load_cases(gold: dict, args: argparse.Namespace) -> list[dict]:
@@ -131,17 +113,17 @@ def grade_case(case: dict, filings: dict, use_judge: bool, judge_model: str) -> 
     if _abort.is_set():
         result["error"] = "skipped: run aborted after an account error"
         return result
-    _local.usage = {"input_tokens": 0, "output_tokens": 0}
+    usage = new_usage()
     start = time.time()
     try:
-        reply, history = agent.run_agent(prompt, [])
+        reply, history = agent.run_agent(prompt, [], on_usage=usage.update)
     except Exception as exc:  # one failing case must not stop the run, unless the account itself is rejected
         if _is_account_error(exc):
             _abort.set()
-        result.update(error=f"agent failed: {exc}", seconds=round(time.time() - start, 1), agent_usage=_local.usage)
+        result.update(error=f"agent failed: {exc}", seconds=round(time.time() - start, 1), agent_usage=usage)
         return result
     result["seconds"] = round(time.time() - start, 1)
-    result["agent_usage"] = _local.usage
+    result["agent_usage"] = usage
     result["answer"] = reply
 
     calls = tool_calls(history)
@@ -188,16 +170,22 @@ def run_once(cases: list[dict], filings: dict, args: argparse.Namespace) -> list
 
 
 def cost(results: list[dict], judge_model: str) -> dict:
-    agent_in = sum(r.get("agent_usage", {}).get("input_tokens", 0) for r in results)
-    agent_out = sum(r.get("agent_usage", {}).get("output_tokens", 0) for r in results)
-    judge_in = sum(r["judge"]["usage"]["input_tokens"] for r in results if r.get("judge"))
-    judge_out = sum(r["judge"]["usage"]["output_tokens"] for r in results if r.get("judge"))
-    a_in, a_out = PRICES.get(agent.MODEL, (0, 0))
-    j_in, j_out = PRICES.get(judge_model, (0, 0))
+    agent_usage = {
+        field: sum(r.get("agent_usage", {}).get(field, 0) for r in results)
+        for field in ("input_tokens", "output_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")
+    }
+    judge_usage = {
+        field: sum(r["judge"]["usage"][field] for r in results if r.get("judge"))
+        for field in ("input_tokens", "output_tokens")
+    }
+    agent_cost = cost_usd(agent_usage, agent.MODEL) or 0.0
+    judge_cost = cost_usd(judge_usage, judge_model) or 0.0
     return {
-        "agent_tokens": [agent_in, agent_out],
-        "judge_tokens": [judge_in, judge_out],
-        "usd": round((agent_in * a_in + agent_out * a_out + judge_in * j_in + judge_out * j_out) / 1e6, 2),
+        "agent_tokens": [agent_usage["input_tokens"], agent_usage["output_tokens"]],
+        "judge_tokens": [judge_usage["input_tokens"], judge_usage["output_tokens"]],
+        "agent_usd": round(agent_cost, 2),
+        "judge_usd": round(judge_cost, 2),
+        "usd": round(agent_cost + judge_cost, 2),
     }
 
 
@@ -261,11 +249,18 @@ def print_report(runs: list[list[dict]], before: dict, judge_model: str) -> dict
 
     spend = cost([r for run in runs for r in run], judge_model)
     seconds = [r["seconds"] for r in results if "seconds" in r]
+    answered = [r for r in results if r.get("answer")]
+    per_query = [r["agent_usage"].get("cost_usd") or 0.0 for r in answered]
     print(
-        f"\nCost: ~${spend['usd']} (agent {spend['agent_tokens'][0]:,} in / {spend['agent_tokens'][1]:,} out, "
-        f"judge {spend['judge_tokens'][0]:,} in / {spend['judge_tokens'][1]:,} out); "
-        f"avg agent turn {sum(seconds) / max(len(seconds), 1):.0f}s"
+        f"\nCost: ~${spend['usd']} = agent ${spend['agent_usd']} ({spend['agent_tokens'][0]:,} in / "
+        f"{spend['agent_tokens'][1]:,} out) + judge ${spend['judge_usd']} ({spend['judge_tokens'][0]:,} in / "
+        f"{spend['judge_tokens'][1]:,} out)"
     )
+    if per_query:
+        print(
+            f"Agent cost per query: median ${sorted(per_query)[len(per_query) // 2]:.3f}, "
+            f"max ${max(per_query):.3f}; avg agent turn {sum(seconds) / max(len(seconds), 1):.0f}s"
+        )
     return {"summaries": summaries, "cost": spend}
 
 
@@ -327,7 +322,6 @@ def main() -> None:
     filings_store.reset()
     filings_store.indexed_filings()  # open the collection before worker threads share it
     agent.print = lambda *a, **k: None
-    _track_agent_usage()
 
     print("=" * 72)
     print(f"Answer Eval — agent {agent.MODEL}, judge {'off' if args.no_judge else args.judge_model}")

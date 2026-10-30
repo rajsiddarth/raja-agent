@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from tools import TOOLS, TOOL_HANDLERS
 from memory import load_history, save_history
 from memory_store import remember_last_turn
+from costs import add_response_usage, cost_usd, format_cost, new_usage
 
 load_dotenv()
 
@@ -77,14 +78,24 @@ def run_agent(
     history: list,
     on_tool_call=None,
     on_think=None,
+    on_usage=None,
 ) -> tuple[str, list]:
     """Run one ReAct agent turn. Returns (reply, updated_history).
 
     Callbacks:
         on_tool_call(name): fired when a data tool is called
         on_think(reasoning): fired when the think tool is used
+        on_usage(usage): fired once when the turn ends, with the token totals across all of the turn's
+            API calls plus "cost_usd" (see costs.py)
     """
     history = history + [{"role": "user", "content": user_message}]
+    usage = new_usage()
+
+    def finish(reply: str) -> tuple[str, list]:
+        usage["cost_usd"] = cost_usd(usage, MODEL)
+        if on_usage:
+            on_usage(usage)
+        return reply, history
 
     while True:
         response = client.messages.create(
@@ -94,6 +105,7 @@ def run_agent(
             tools=ALL_TOOLS,
             messages=history,
         )
+        add_response_usage(usage, response.usage)
 
         # Store plain dicts (not SDK objects) so history can be saved as JSON
         content = [b.model_dump(exclude_none=True) for b in response.content]
@@ -104,7 +116,7 @@ def run_agent(
                 (b.text for b in response.content if hasattr(b, "text")),
                 "(no response)",
             )
-            return reply, history
+            return finish(reply)
 
         if response.stop_reason == "tool_use":
             tool_results = []
@@ -149,16 +161,16 @@ def run_agent(
             history = history + [{"role": "user", "content": tool_results}]
 
         elif response.stop_reason == "refusal":
-            return (
+            return finish(
                 "I can only retrieve and present market data. "
                 "Please ask me for stock prices, fundamentals, news, or historical data."
-            ), history
+            )
         else:
             text = next(
                 (b.text for b in response.content if hasattr(b, "text")),
                 f"Unexpected stop: {response.stop_reason}",
             )
-            return text, history
+            return finish(text)
 
 
 def _remember_or_warn(session_name: str, history: list) -> None:
@@ -176,6 +188,7 @@ def main() -> None:
 
     session_name = input("Session name (press Enter for 'default'): ").strip() or "default"
     history = load_history(session_name)
+    session_cost = 0.0
 
     if history:
         turn_count = sum(1 for m in history if m.get("role") == "user")
@@ -205,9 +218,12 @@ def main() -> None:
             continue
 
         print()
-        reply, history = run_agent(user_input, history)
+        turn_usage: dict = {}
+        reply, history = run_agent(user_input, history, on_usage=turn_usage.update)
         save_history(session_name, history)
+        session_cost += turn_usage.get("cost_usd") or 0.0
         print(f"Agent: {reply}\n")
+        print(f"  💲 {format_cost(turn_usage)} · session so far ${session_cost:.3f}\n")
         _remember_or_warn(session_name, history)
 
 

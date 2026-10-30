@@ -3,6 +3,7 @@
 import streamlit as st
 from dotenv import load_dotenv
 from agent import run_agent
+from costs import format_cost
 from memory import load_history, save_history, list_sessions, delete_session
 from memory_store import remember_last_turn, memory_count
 from filings_store import indexed_filings
@@ -53,6 +54,9 @@ with st.sidebar:
     except Exception as exc:
         st.caption(f"📄 Filings index unavailable: {exc}")
 
+    # filled in at the end of the script, after this run's turn (if any) has been costed
+    cost_slot = st.empty()
+
     st.divider()
     new_session_name = st.text_input("Session name", value="default", key="session_input")
 
@@ -64,18 +68,21 @@ with st.sidebar:
         st.session_state.session_name = new_session_name
         st.session_state.history = load_history(new_session_name)
         st.session_state.messages = []
+        st.session_state.session_cost = 0.0
         st.rerun()
 
     if clear_btn:
         st.session_state.session_name = new_session_name
         st.session_state.history = []
         st.session_state.messages = []
+        st.session_state.session_cost = 0.0
         st.rerun()
 
     if sessions and st.button("🗑 Delete this session", use_container_width=True):
         delete_session(st.session_state.get("session_name", "default"))
         st.session_state.history = []
         st.session_state.messages = []
+        st.session_state.session_cost = 0.0
         st.rerun()
 
 # ---------------------------------------------------------------------------
@@ -87,6 +94,8 @@ if "history" not in st.session_state:
     st.session_state.history = load_history(st.session_state.session_name)
 if "messages" not in st.session_state:
     st.session_state.messages = []
+if "session_cost" not in st.session_state:
+    st.session_state.session_cost = 0.0  # $ spent on Claude calls since this session was opened here
 
 # ---------------------------------------------------------------------------
 # Header
@@ -115,6 +124,8 @@ for msg in st.session_state.messages:
             with st.expander(f"{len(msg['tools'])} tool(s) called", expanded=False):
                 for t in msg["tools"]:
                     st.caption(f"→ {t}")
+        if msg.get("usage"):
+            st.caption(f"💲 {format_cost(msg['usage'])}")
 
 # ---------------------------------------------------------------------------
 # Suggestion buttons (only on empty chat)
@@ -151,6 +162,7 @@ if prompt:
 
     tools_called: list[str] = []
     thoughts: list[str] = []
+    usage: dict = {}
     agent_ok = False
 
     with st.chat_message("assistant"):
@@ -168,7 +180,9 @@ if prompt:
                     thoughts.append(reasoning),
                     status.update(label="💭 Reasoning..."),
                 ),
+                on_usage=usage.update,
             )
+            st.session_state.session_cost += usage.get("cost_usd") or 0.0
             save_history(st.session_state.session_name, st.session_state.history)
             agent_ok = True
 
@@ -195,12 +209,21 @@ if prompt:
                 for t in tools_called:
                     st.caption(f"→ {t}")
 
+        if usage:
+            st.caption(f"💲 {format_cost(usage)}")
+
     st.session_state.messages.append({
         "role": "assistant",
         "content": reply,
         "tools": tools_called,
         "thoughts": thoughts,
+        "usage": usage,
     })
 
     if agent_ok:
         remember_or_warn(st.session_state.session_name, st.session_state.history)
+
+# ---------------------------------------------------------------------------
+# Sidebar cost total (drawn last so it includes the turn that just ran)
+# ---------------------------------------------------------------------------
+cost_slot.caption(f"💲 Claude API cost this session: ${st.session_state.session_cost:.3f}")

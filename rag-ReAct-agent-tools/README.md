@@ -44,6 +44,7 @@ rag-ReAct-agent-tools/
 ├── filings_store.py  # Sections, chunking, indexing and search over filings
 ├── memory.py         # JSON session persistence
 ├── memory_store.py   # Long-term memory across sessions
+├── costs.py          # Token usage and $ cost per query
 ├── tools.py          # yfinance tools + recall_memory + search_filings
 ├── backfill.py       # Load existing session JSON files into memory
 ├── app.py            # Streamlit UI: sessions, memory count, indexed filings
@@ -135,6 +136,16 @@ python evals/run_retrieval_evals.py --save evals/results/retrieval_run.json  # a
   | `retrieval_strip_company.json`: company name removed from queries | 0.32 | **0.92** | **0.53** | **0.90** |
 
   The company's name in a question pulled the search toward boilerplate that repeats it ("All references to NVIDIA ..."), so the name and ticker are now removed before searching. Ranking the best passage first (hit@1) is the next gap to close.
+
+## Cost per Query
+
+Each answer shows what it cost, e.g. `💲 $0.048 · 3 API calls · 15,195 in / 1,134 out tokens`. The CLI also prints the running total for the session, and the Streamlit sidebar shows it.
+
+- **Only Claude calls cost money.** Embeddings (local MiniLM), SEC EDGAR and yfinance are free.
+- **One question means several API calls.** The `think` step, each tool call and the final answer are separate calls, and each one resends the whole conversation so far: system prompt, tool definitions, history and tool results. So input tokens dominate the cost.
+- **Typical cost.** In the answer eval, a filing question cost a median of about $0.05: $0.03 for a single lookup, $0.09 for questions needing several searches, and up to $0.17 for one that needed 6 tool calls.
+- **Cost grows over a session.** Each new question resends the earlier ones in that session.
+- **Where it's computed:** `costs.py` holds the prices. `run_agent(..., on_usage=callback)` reports the turn's token totals and `cost_usd` once the turn ends.
 
 ## Available Tools
 
