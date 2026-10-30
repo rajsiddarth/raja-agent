@@ -6,6 +6,7 @@ so later questions about the same filing (from any session) are fast.
 
 import os
 import re
+import time
 
 import edgar
 
@@ -20,8 +21,12 @@ MIN_CHUNK_CHARS = 80
 # Override in tests to avoid downloading the default embedding model
 embedding_function = None
 
+# How long an EDGAR "which filing is current?" answer is trusted before asking EDGAR again
+LOOKUP_TTL_S = 24 * 60 * 60
+
 _collection = None
-_latest_cache: dict[tuple[str, str], dict] = {}
+# (symbol, form, fiscal_year) -> (looked_up_at, filing)
+_lookup_cache: dict[tuple[str, str, int | None], tuple[float, dict]] = {}
 
 _PART_RE = re.compile(r"^PART\s+(I{1,3}|IV)\b", re.I)
 _ITEM_RE = re.compile(r"^ITEM\s+(\d{1,2}[A-C]?)\s*[.:\-—]?\s*(.*)$", re.I)
@@ -47,7 +52,7 @@ def reset() -> None:
     """Drop cached handles (used when FILINGS_DIR changes, e.g. in tests)."""
     global _collection
     _collection = None
-    _latest_cache.clear()
+    _lookup_cache.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -150,13 +155,18 @@ def index_filing(filing: dict, text: str) -> int:
     return len(chunks)
 
 
-def ensure_latest_indexed(symbol: str, form: str = "10-K") -> dict:
-    """Make sure the company's most recent filing of this form is indexed; return its metadata."""
-    key = (symbol.upper(), form)
-    filing = _latest_cache.get(key)
-    if filing is None:
-        filing = edgar.latest_filing(symbol, form)
-        _latest_cache[key] = filing
+def ensure_indexed(symbol: str, form: str = "10-K", fiscal_year: int | None = None) -> dict:
+    """Make sure the requested filing (latest, or for a fiscal year) is indexed; return its metadata.
+
+    EDGAR lookups are cached for LOOKUP_TTL_S, so a long-running app still notices a new filing.
+    """
+    key = (symbol.upper(), form, fiscal_year)
+    cached = _lookup_cache.get(key)
+    if cached is not None and time.time() - cached[0] < LOOKUP_TTL_S:
+        filing = cached[1]
+    else:
+        filing = edgar.find_filing(symbol, form, fiscal_year)
+        _lookup_cache[key] = (time.time(), filing)
     if not is_indexed(filing["accession"]):
         filing["chunks"] = index_filing(filing, edgar.fetch_filing_text(filing))
     return filing
@@ -176,12 +186,13 @@ def search_filing(query: str, accession: str, n_results: int = 5) -> list[dict]:
 
 
 def indexed_filings() -> list[dict]:
-    """List the filings stored in the index: [{symbol, form, filing_date, chunks}], newest first."""
+    """List the filings stored in the index: [{symbol, form, filing_date, period, chunks}], newest first."""
     metas = _get_collection().get(include=["metadatas"])["metadatas"]
     filings: dict[str, dict] = {}
     for meta in metas:
         entry = filings.setdefault(meta["accession"], {
-            "symbol": meta["symbol"], "form": meta["form"], "filing_date": meta["filing_date"], "chunks": 0,
+            "symbol": meta["symbol"], "form": meta["form"], "filing_date": meta["filing_date"],
+            "period": meta["period"], "chunks": 0,
         })
         entry["chunks"] += 1
     return sorted(filings.values(), key=lambda f: f["filing_date"], reverse=True)

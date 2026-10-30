@@ -10,7 +10,7 @@ This is step 5 of the learning roadmap, built on top of the [long-term memory ag
 |---|---|---|
 | Market data (yfinance) | ✅ | ✅ |
 | Memory across sessions | ✅ `recall_memory` | ✅ `recall_memory` |
-| Company filings | ❌ | ✅ `search_filings` over the latest 10-K / 10-Q |
+| Company filings | ❌ | ✅ `search_filings` over a 10-K / 10-Q, latest or any fiscal year |
 | Answers cite sources | — | Form, filing date and section |
 
 ## How RAG Works Here
@@ -20,6 +20,7 @@ This is step 5 of the learning roadmap, built on top of the [long-term memory ag
     ↓ think() — this is in the company's own words, not market data
     ↓ search_filings(symbol="AAPL", query="supply chain risks", form="10-K")
         ↓ EDGAR: ticker → CIK → most recent 10-K               (edgar.py)
+          (or the 10-K for a fiscal_year, e.g. 2021)
         ↓ first time only: download, convert HTML to text,
           split into Part/Item sections, chunk, embed, store    (filings_store.py → filings_db/)
         ↓ embed the query, return the 5 most similar chunks from that filing
@@ -27,7 +28,8 @@ This is step 5 of the learning roadmap, built on top of the [long-term memory ag
 ```
 
 - **Indexed once, reused everywhere.** A filing is downloaded and embedded the first time it is searched, which can take up to a minute. It is then stored in `filings_db/` and reused by every session.
-- **Always the latest filing.** Each search checks EDGAR for the most recent filing of that form. A new 10-K is indexed automatically when it appears; older ones stay in the index.
+- **Latest filing by default, any year on request.** Without `fiscal_year`, a search uses the most recent filing of that form. EDGAR's answer is cached for 24 hours, so even a long-running app picks up a new 10-K within a day; older ones stay in the index.
+- **Older filings by fiscal year.** `fiscal_year` is the year the reporting period ended (Apple's year ending September 2021 is 2021; NVIDIA's year ending January 2025 is 2025). To compare years, the agent searches each year with the same query and says which period each point comes from.
 - **Chunks follow the filing's structure.** Chunks are about 1,000 characters, which is what the embedding model reads in full. They overlap by about 200 characters and never cross a section boundary. Each chunk is tagged with its section, e.g. `Part I — Item 1A. Risk Factors`, and the heading is embedded with the text, so a search for "risk factors" favours risk chunks.
 - **Hidden XBRL data is removed.** Modern filings embed machine-readable tags; these are stripped so only the readable document is indexed.
 - **Same local embedding model** as long-term memory (`all-MiniLM-L6-v2`). No extra API key or cost.
@@ -96,7 +98,7 @@ python evals/run_evals.py     # live agent; memory and filings go to temp folder
 | `search_ticker` | Find ticker by company name |
 | `get_options` | Calls/puts chain |
 | `recall_memory` | Search past conversations across all sessions |
-| `search_filings` | Search the latest 10-K or 10-Q for relevant passages |
+| `search_filings` | Search a 10-K or 10-Q (latest, or by fiscal year) for relevant passages |
 
 ## Model
 
@@ -106,7 +108,8 @@ python evals/run_evals.py     # live agent; memory and filings go to temp folder
 
 - **US SEC filers only.** ETFs and most non-US companies (which file 20-F/40-F) have no 10-K.
 - **Text only.** Financial tables become flattened rows of text, so exact figures are better fetched with the data tools.
-- **Latest filing per form.** Questions about older years need a filing-date option, which is not built yet.
+- **Fiscal year means the year the period ended.** A few companies (e.g. some retailers whose year ends in late January) name their fiscal year after the previous calendar year; the agent checks the returned period.
+- **One 10-Q per year.** With `fiscal_year`, a 10-Q search uses the latest quarter ending in that year; picking a specific quarter is not built yet.
 - **Retrieval can miss.** If the best passages do not answer the question, the agent is told to say so and to search again with different wording, not to guess.
 - The current session's history is still sent in full with every request, as in step 4.
 

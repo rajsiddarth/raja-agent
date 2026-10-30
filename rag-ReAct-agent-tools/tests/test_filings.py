@@ -67,26 +67,72 @@ def test_lookup_cik_uses_cached_ticker_list(tmp_path, monkeypatch):
         edgar.lookup_cik("NOPE")
 
 
-def test_latest_filing_picks_most_recent_matching_form():
-    submissions = {"filings": {"recent": {
-        "form": ["8-K", "10-Q", "10-K", "10-K"],
-        "accessionNumber": ["a-1", "0000320193-25-000010", "0000320193-24-000123", "old"],
-        "filingDate": ["2025-12-01", "2025-08-01", "2024-11-01", "2023-11-01"],
-        "reportDate": ["", "2025-06-30", "2024-09-28", "2023-09-30"],
-        "primaryDocument": ["x.htm", "q.htm", "aapl-20240928.htm", "old.htm"],
-    }}}
-    response = MagicMock()
-    response.json.return_value = submissions
-    with patch("edgar.lookup_cik", return_value=320193), patch("edgar._get", return_value=response):
-        filing = edgar.latest_filing("aapl", "10-K")
+RECENT = {
+    "form": ["8-K", "10-Q", "10-K", "10-K/A", "10-K"],
+    "accessionNumber": ["a-1", "0000320193-25-000010", "0000320193-24-000123", "amend", "0000320193-23-000106"],
+    "filingDate": ["2025-12-01", "2025-08-01", "2024-11-01", "2024-01-15", "2023-11-03"],
+    "reportDate": ["", "2025-06-30", "2024-09-28", "2023-09-30", "2023-09-30"],
+    "primaryDocument": ["x.htm", "q.htm", "aapl-20240928.htm", "amend.htm", "aapl-20230930.htm"],
+}
+OLDER_PAGE = {
+    "form": ["10-K", "4", "10-K405"],
+    "accessionNumber": ["0000320193-21-000105", "f4", "0000320193-01-000005"],
+    "filingDate": ["2021-10-29", "2019-05-01", "2001-12-21"],
+    "reportDate": ["2021-09-25", "", "2001-09-29"],
+    "primaryDocument": ["aapl-20210925.htm", "f4.xml", "d10k405.txt"],
+}
+
+
+def _submissions_get(pages: dict):
+    """Fake edgar._get that serves the main submissions file and older pages by URL."""
+    def get(url: str) -> MagicMock:
+        response = MagicMock()
+        response.json.return_value = pages[url.rsplit("/", 1)[1]]
+        return response
+    return get
+
+
+SUBMISSIONS = {
+    "CIK0000320193.json": {"filings": {"recent": RECENT, "files": [{"name": "CIK0000320193-submissions-001.json"}]}},
+    "CIK0000320193-submissions-001.json": OLDER_PAGE,
+}
+
+
+def test_find_filing_picks_most_recent_matching_form():
+    with patch("edgar.lookup_cik", return_value=320193), patch("edgar._get", side_effect=_submissions_get(SUBMISSIONS)) as get:
+        filing = edgar.find_filing("aapl", "10-K")
     assert filing["accession"] == "0000320193-24-000123"
     assert filing["filing_date"] == "2024-11-01"
     assert filing["url"] == "https://www.sec.gov/Archives/edgar/data/320193/000032019324000123/aapl-20240928.htm"
+    assert get.call_count == 1  # older pages are not fetched when the recent list has the answer
 
 
-def test_latest_filing_rejects_unsupported_form():
+def test_find_filing_by_fiscal_year_skips_amendments():
+    with patch("edgar.lookup_cik", return_value=320193), patch("edgar._get", side_effect=_submissions_get(SUBMISSIONS)):
+        filing = edgar.find_filing("AAPL", "10-K", fiscal_year=2023)
+    assert filing["accession"] == "0000320193-23-000106"
+    assert filing["period"] == "2023-09-30"
+
+
+def test_find_filing_reads_older_pages_and_10k405():
+    with patch("edgar.lookup_cik", return_value=320193), patch("edgar._get", side_effect=_submissions_get(SUBMISSIONS)) as get:
+        assert edgar.find_filing("AAPL", "10-K", fiscal_year=2021)["accession"] == "0000320193-21-000105"
+        filing = edgar.find_filing("AAPL", "10-K", fiscal_year=2001)
+    assert filing["accession"] == "0000320193-01-000005"
+    assert filing["form"] == "10-K"
+    assert get.call_count == 4
+
+
+def test_find_filing_stops_early_and_lists_years_seen():
+    with patch("edgar.lookup_cik", return_value=320193), patch("edgar._get", side_effect=_submissions_get(SUBMISSIONS)) as get:
+        with pytest.raises(edgar.EdgarError, match=r"fiscal year 2025 .*seen.*: 2024\."):
+            edgar.find_filing("AAPL", "10-K", fiscal_year=2025)
+    assert get.call_count == 1  # filings dated before 2025 cannot be for fiscal 2025
+
+
+def test_find_filing_rejects_unsupported_form():
     with pytest.raises(edgar.EdgarError, match="Unsupported form"):
-        edgar.latest_filing("AAPL", "8-K")
+        edgar.find_filing("AAPL", "8-K")
 
 
 # ---------------------------------------------------------------------------
@@ -138,17 +184,39 @@ def test_reindexing_does_not_duplicate(filings_db):
     filings_db.index_filing(FILING, FILING_TEXT)
     filings_db.index_filing(FILING, FILING_TEXT)
     assert filings_db.indexed_filings() == [
-        {"symbol": "EXM", "form": "10-K", "filing_date": "2025-11-01", "chunks": len(chunk_text(FILING_TEXT))}
+        {"symbol": "EXM", "form": "10-K", "filing_date": "2025-11-01", "period": "2025-09-30", "chunks": len(chunk_text(FILING_TEXT))}
     ]
 
 
-def test_ensure_latest_indexed_downloads_only_once(filings_db):
-    with patch("edgar.latest_filing", return_value=dict(FILING)) as latest, \
+def test_ensure_indexed_downloads_only_once(filings_db):
+    with patch("edgar.find_filing", return_value=dict(FILING)) as find, \
          patch("edgar.fetch_filing_text", return_value=FILING_TEXT) as fetch:
-        filings_db.ensure_latest_indexed("EXM")
-        filings_db.ensure_latest_indexed("EXM")
-    latest.assert_called_once()
+        filings_db.ensure_indexed("EXM")
+        filings_db.ensure_indexed("EXM")
+    find.assert_called_once()
     fetch.assert_called_once()
+
+
+def test_ensure_indexed_asks_edgar_again_after_ttl(filings_db, monkeypatch):
+    newer = dict(FILING, accession="0000123-26-000001", filing_date="2026-11-01", period="2026-09-30")
+    with patch("edgar.find_filing", side_effect=[dict(FILING), newer]) as find, \
+         patch("edgar.fetch_filing_text", return_value=FILING_TEXT) as fetch:
+        assert filings_db.ensure_indexed("EXM")["accession"] == FILING["accession"]
+        monkeypatch.setattr(filings_db, "LOOKUP_TTL_S", 0)
+        assert filings_db.ensure_indexed("EXM")["accession"] == newer["accession"]
+    assert find.call_count == 2
+    assert fetch.call_count == 2  # the new filing is downloaded and indexed
+    assert [f["filing_date"] for f in filings_db.indexed_filings()] == ["2026-11-01", "2025-11-01"]
+
+
+def test_ensure_indexed_caches_each_fiscal_year_separately(filings_db):
+    older = dict(FILING, accession="0000123-22-000001", filing_date="2022-11-01", period="2022-09-30")
+    with patch("edgar.find_filing", side_effect=[dict(FILING), older]) as find, \
+         patch("edgar.fetch_filing_text", return_value=FILING_TEXT):
+        filings_db.ensure_indexed("EXM")
+        assert filings_db.ensure_indexed("EXM", "10-K", 2022)["accession"] == older["accession"]
+        filings_db.ensure_indexed("EXM", "10-K", 2022)
+    assert [c.args for c in find.call_args_list] == [("EXM", "10-K", None), ("EXM", "10-K", 2022)]
 
 
 # ---------------------------------------------------------------------------
@@ -156,7 +224,7 @@ def test_ensure_latest_indexed_downloads_only_once(filings_db):
 # ---------------------------------------------------------------------------
 
 def test_search_filings_tool_returns_filing_and_passages(filings_db):
-    with patch("edgar.latest_filing", return_value=dict(FILING)), \
+    with patch("edgar.find_filing", return_value=dict(FILING)), \
          patch("edgar.fetch_filing_text", return_value=FILING_TEXT):
         result = search_filings({"symbol": "EXM", "query": "competition prices gross margin", "n_results": 2})
     assert result["filing"]["form"] == "10-K"
@@ -166,12 +234,26 @@ def test_search_filings_tool_returns_filing_and_passages(filings_db):
 
 
 def test_search_filings_tool_reports_edgar_errors(filings_db):
-    with patch("edgar.latest_filing", side_effect=edgar.EdgarError("No recent 10-K found for XYZ.")):
+    with patch("edgar.find_filing", side_effect=edgar.EdgarError("No recent 10-K found for XYZ.")):
         result = search_filings({"symbol": "XYZ", "query": "risks"})
     assert result == {"error": "No recent 10-K found for XYZ."}
 
 
 def test_search_filings_tool_defaults_bad_form_to_10k(filings_db):
-    with patch("filings_store.ensure_latest_indexed", side_effect=edgar.EdgarError("stop")) as ensure:
+    with patch("filings_store.ensure_indexed", side_effect=edgar.EdgarError("stop")) as ensure:
         search_filings({"symbol": "EXM", "query": "risks", "form": "8-K"})
-    ensure.assert_called_once_with("EXM", "10-K")
+    ensure.assert_called_once_with("EXM", "10-K", None)
+
+
+def test_search_filings_tool_passes_fiscal_year(filings_db):
+    with patch("filings_store.ensure_indexed", side_effect=edgar.EdgarError("stop")) as ensure:
+        search_filings({"symbol": "EXM", "query": "risks", "fiscal_year": "2021"})
+    ensure.assert_called_once_with("EXM", "10-K", 2021)
+
+
+@pytest.mark.parametrize("year", ["last year", 1980])
+def test_search_filings_tool_rejects_bad_fiscal_year(filings_db, year):
+    with patch("filings_store.ensure_indexed") as ensure:
+        result = search_filings({"symbol": "EXM", "query": "risks", "fiscal_year": year})
+    assert "fiscal_year" in result["error"]
+    ensure.assert_not_called()

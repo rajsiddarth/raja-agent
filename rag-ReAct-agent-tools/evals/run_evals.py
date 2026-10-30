@@ -94,6 +94,12 @@ EVALS = [
         "expect_tools": ["get_quote", "search_filings"],
         "expect_in_answer": ["nvda", "compet"],
     },
+    {
+        "id": "filings_older_year",
+        "question": "What supply chain risks did Apple describe in its 10-K for fiscal year 2021?",
+        "expect_tools": ["search_filings"],
+        "expect_in_answer": ["2021", "supply"],
+    },
 ]
 
 # ---------------------------------------------------------------------------

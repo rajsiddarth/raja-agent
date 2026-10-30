@@ -1,13 +1,13 @@
 # ReAct Finance Agent with RAG over SEC Filings
 
-A finance agent that uses the **ReAct pattern** + **long-term memory** + **RAG over SEC filings** — `search_filings` retrieves passages from a company's latest 10-K/10-Q, and `recall_memory` searches past sessions.
+A finance agent that uses the **ReAct pattern** + **long-term memory** + **RAG over SEC filings** — `search_filings` retrieves passages from a company's 10-K/10-Q (latest, or a given fiscal year), and `recall_memory` searches past sessions.
 
 ## Project Structure
 
 - `agent.py` — ReAct agent loop with think tool + session load/save + stores each turn
 - `memory.py` — JSON-based session persistence (load, save, list, delete)
 - `memory_store.py` — ChromaDB long-term memory (extract turns, store, search)
-- `edgar.py` — SEC EDGAR client (ticker → CIK, latest 10-K/10-Q, HTML → text)
+- `edgar.py` — SEC EDGAR client (ticker → CIK, find a 10-K/10-Q by recency or fiscal year, HTML → text)
 - `filings_store.py` — Filing RAG: split sections, chunk, index (ChromaDB), search
 - `tools.py` — Tool definitions and handlers (yfinance + `recall_memory` + `search_filings`)
 - `backfill.py` — Loads existing session JSON files into long-term memory
@@ -52,13 +52,18 @@ Store "Q + final answer" in memory_db/            (long-term, all sessions)
 ## How Filing RAG Works
 
 ```
-search_filings(symbol, query, form="10-K")
-    ↓ edgar.latest_filing — ticker → CIK → most recent filing of that form
+search_filings(symbol, query, form="10-K", fiscal_year=None)
+    ↓ filings_store.ensure_indexed — EDGAR lookup cached per (symbol, form, fiscal_year) for 24h
+    ↓ edgar.find_filing — ticker → CIK → most recent filing of that form, or the one whose period ended in fiscal_year
     ↓ not indexed yet? download → html_to_text → split_sections → chunk_text → embed → filings_db/
     ↓ query the chunks of that filing only (where accession = …), top n by cosine similarity
     ↓ return {filing: {form, filing_date, period, url}, passages: [{section, text, relevance}]}
 ```
 
+- Fiscal year = year of the period end date (`reportDate`). Older filings live in extra submissions pages,
+  fetched only when the scan reaches them; the scan stops once filing dates are before the requested year.
+- 10-K also matches pre-2003 `10-K405`; amendments (`10-K/A`) are skipped.
+- `LOOKUP_TTL_S` (24h) bounds how long a running app can miss a newly filed 10-K/10-Q.
 - Chunks: ~1,000 chars (MiniLM reads ~256 tokens), ~200 char overlap, never cross a Part/Item section.
 - The section heading is embedded with each chunk and stripped from returned text.
 - Chunk IDs are `accession:index`; re-indexing overwrites. One filing is indexed once, shared by all sessions.
@@ -89,7 +94,7 @@ Claude synthesizes all data into a final answer
 | `search_ticker` | Find symbol by company name |
 | `get_options` | Calls/puts chain |
 | `recall_memory` | Search past conversations across all sessions |
-| `search_filings` | Passages from the latest 10-K/10-Q (SEC EDGAR) |
+| `search_filings` | Passages from a 10-K/10-Q, latest or by fiscal year (SEC EDGAR) |
 
 ## Model
 
