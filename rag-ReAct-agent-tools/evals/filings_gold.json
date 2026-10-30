@@ -1,5 +1,5 @@
 {
-  "_about": "Gold set for evals/run_retrieval_evals.py (cases, error_cases) and evals/run_answer_evals.py (cases with key_facts and exact_facts, plus unanswerable_cases). Each case is pinned to one filing (by fiscal year) so new filings never change the expected answer. A retrieved passage is a hit if it contains any gold snippet (case, whitespace and curly quotes ignored). gold_sections are substrings of the expected section label. Questions are paraphrased on purpose: copying the filing's wording would flatter retrieval. key_facts are graded by the LLM judge; exact_facts are strings checked in code.",
+  "_about": "Gold set for evals/run_retrieval_evals.py (cases, error_cases) and evals/run_answer_evals.py (cases with key_facts and exact_facts, plus unanswerable_cases). Each case is pinned to one filing (by fiscal year) so new filings never change the expected answer. A retrieved passage is a hit if it contains any gold snippet (case, whitespace and curly quotes ignored). gold_sections are substrings of the expected section label. Questions are paraphrased on purpose: copying the filing's wording would flatter retrieval. key_facts are graded by the LLM judge; exact_facts are strings checked in code. relevant (optional) lists every distinct passage a complete answer needs, each as a group of alternative snippets; it drives recall@k, precision@k and MAP@k. Cases without it count gold_snippets as their one relevant group.",
   "filings": {
     "AAPL-10K-2025": {
       "symbol": "AAPL",
@@ -64,6 +64,14 @@
       "gold_snippets": [
         "new U.S. Tariffs were announced",
         "partially offset by tariff costs"
+      ],
+      "relevant": [
+        [
+          "new U.S. Tariffs were announced"
+        ],
+        [
+          "partially offset by tariff costs"
+        ]
       ],
       "gold_sections": [
         "Item 7. Management",
@@ -237,6 +245,14 @@
         "new share repurchase program of up to $100 billion",
         "During 2025, the Company repurchased $89.3 billion"
       ],
+      "relevant": [
+        [
+          "new share repurchase program of up to $100 billion"
+        ],
+        [
+          "During 2025, the Company repurchased $89.3 billion"
+        ]
+      ],
       "gold_sections": [
         "Item 7. Management",
         "Item 5."
@@ -276,6 +292,14 @@
         "aspects of the Company's business continued to be affected by the COVID-19 pandemic",
         "The COVID-19 pandemic and the measures taken by many countries in response"
       ],
+      "relevant": [
+        [
+          "aspects of the Company's business continued to be affected by the COVID-19 pandemic"
+        ],
+        [
+          "The COVID-19 pandemic and the measures taken by many countries in response"
+        ]
+      ],
       "gold_sections": [
         "Item 7. Management",
         "Item 1A. Risk Factors"
@@ -294,6 +318,17 @@
       "gold_snippets": [
         "single-source outsourcing partners in the U.S., Asia and Europe",
         "obtains certain components from single or limited sources"
+      ],
+      "relevant": [
+        [
+          "single-source outsourcing partners in the U.S., Asia and Europe"
+        ],
+        [
+          "obtains certain components from single or limited sources"
+        ],
+        [
+          "remains subject to significant risks of supply shortages and price increases"
+        ]
       ],
       "gold_sections": [
         "Item 1A. Risk Factors"
@@ -366,6 +401,14 @@
       "gold_snippets": [
         "subscription accounting in accordance with SOP No. 97-2",
         "24-month estimated economic life"
+      ],
+      "relevant": [
+        [
+          "subscription accounting in accordance with SOP No. 97-2"
+        ],
+        [
+          "24-month estimated economic life"
+        ]
       ],
       "gold_sections": [
         "Item 7. Management",
@@ -480,6 +523,14 @@
         "shifting and expanding export control restrictions",
         "Our competitive position has been harmed by the existing export controls"
       ],
+      "relevant": [
+        [
+          "shifting and expanding export control restrictions"
+        ],
+        [
+          "Our competitive position has been harmed by the existing export controls"
+        ]
+      ],
       "gold_sections": [
         "Item 1A. Risk Factors",
         "Item 1. Business",
@@ -499,6 +550,14 @@
       "gold_snippets": [
         "published the \"AI Diffusion\" IFR",
         "The AI Diffusion IFR would expose"
+      ],
+      "relevant": [
+        [
+          "published the \"AI Diffusion\" IFR"
+        ],
+        [
+          "The AI Diffusion IFR would expose"
+        ]
       ],
       "gold_sections": [
         "Item 1A. Risk Factors",
@@ -521,6 +580,14 @@
       "question": "Which companies does NVIDIA consider its competitors?",
       "gold_snippets": [
         "such as Advanced Micro Devices, Inc., or AMD, Huawei Technologies Co. Ltd."
+      ],
+      "relevant": [
+        [
+          "such as Advanced Micro Devices, Inc., or AMD, Huawei Technologies Co. Ltd."
+        ],
+        [
+          "large cloud services companies with internal teams designing hardware and software"
+        ]
       ],
       "gold_sections": [
         "Item 1. Business"
@@ -581,6 +648,15 @@
       "gold_snippets": [
         "Our two operating segments are",
         "The Compute & Networking segment includes"
+      ],
+      "relevant": [
+        [
+          "Our two operating segments are",
+          "The Compute & Networking segment includes"
+        ],
+        [
+          "The Graphics segment includes"
+        ]
       ],
       "gold_sections": [
         "Item 7. Management",
@@ -730,6 +806,17 @@
         "civil antitrust lawsuit in the U.S. District Court for the District of New Jersey",
         "opened a formal noncompliance investigation",
         "The Company is subject to other legal proceedings"
+      ],
+      "relevant": [
+        [
+          "Epic Games, Inc. filed a lawsuit"
+        ],
+        [
+          "civil antitrust lawsuit in the U.S. District Court for the District of New Jersey"
+        ],
+        [
+          "opened a formal noncompliance investigation"
+        ]
       ],
       "gold_sections": [
         "Part II — Item 1. Legal"
