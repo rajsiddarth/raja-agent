@@ -71,6 +71,21 @@ cd rag-ReAct-agent-tools
 python evals/run_retrieval_evals.py --compare evals/results/retrieval_strip_company.json
 ```
 
+Step 5 also has an **answer eval**. It runs the live agent and has a second model, `claude-opus-5-5`, judge each answer. It measures:
+- **Correctness:** whether the answer covers the key facts.
+- **Faithfulness:** whether every claim is supported by what the agent retrieved.
+- **Citations:** whether the answer cites the right form, filing and sections.
+- **Abstention:** on unanswerable questions, whether the agent says so instead of answering.
+
+A full run costs about $4–5 in API usage:
+
+```bash
+python evals/run_answer_evals.py --limit 3                                    # smoke test
+python evals/run_answer_evals.py --save evals/results/answers_baseline.json   # full run
+```
+
+See [`rag-ReAct-agent-tools/README.md`](rag-ReAct-agent-tools/README.md) for the metrics, how the judge works and how to calibrate it.
+
 ## Generated data (gitignored)
 
 | Folder | Created by | Contents |
