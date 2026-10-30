@@ -56,6 +56,7 @@ search_filings(symbol, query, form="10-K", fiscal_year=None)
     ↓ filings_store.ensure_indexed — EDGAR lookup cached per (symbol, form, fiscal_year) for 24h
     ↓ edgar.find_filing — ticker → CIK → most recent filing of that form, or the one whose period ended in fiscal_year
     ↓ not indexed yet? download → html_to_text → split_sections → chunk_text → embed → filings_db/
+    ↓ filings_store.search — strip_company removes the company name and ticker from the query
     ↓ query the chunks of that filing only (where accession = …), top n by cosine similarity
     ↓ return {filing: {form, filing_date, period, url}, passages: [{section, text, relevance}]}
 ```
@@ -63,6 +64,7 @@ search_filings(symbol, query, form="10-K", fiscal_year=None)
 - Fiscal year = year of the period end date (`reportDate`). Older filings live in extra submissions pages,
   fetched only when the scan reaches them; the scan stops once filing dates are before the requested year.
 - 10-K also matches pre-2003 `10-K405`; amendments (`10-K/A`) are skipped.
+- The company name comes from SEC's ticker list (`filing["company"]`, e.g. "NVIDIA CORP"). A name is stripped only where it is capitalised, and a ticker only in upper case with 2+ letters (so "revenue target" and the ticker "A" are left alone). Removing the name beat replacing it with "the Company" in the retrieval eval.
 - `LOOKUP_TTL_S` (24h) bounds how long a running app can miss a newly filed 10-K/10-Q.
 - Chunks: ~1,000 chars (MiniLM reads ~256 tokens), ~200 char overlap, never cross a Part/Item section.
 - The section heading is embedded with each chunk and stripped from returned text.
@@ -76,7 +78,7 @@ search_filings(symbol, query, form="10-K", fiscal_year=None)
 - `evals/run_evals.py` runs the live agent and checks the think step, the tools called and expected strings (it calls the Claude API).
 - `evals/run_retrieval_evals.py` measures retrieval only, with no Claude calls. The gold set is `evals/retrieval_gold.json`, and the scoring lives in `evals/retrieval_metrics.py` (unit-tested).
 - Gold cases are pinned to a filing by `fiscal_year`. Snippets are verbatim from the filing, and questions are paraphrased.
-- Run the retrieval eval before and after any change to chunking or search, and compare it with `evals/results/retrieval_baseline.json`.
+- Run the retrieval eval before and after any change to chunking or search. Use `--compare` against the latest file in `evals/results/` and save each accepted change as a new results file.
 
 ## How ReAct Works
 

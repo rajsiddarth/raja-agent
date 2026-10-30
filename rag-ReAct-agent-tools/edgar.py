@@ -58,6 +58,11 @@ def _get(url: str) -> requests.Response:
 
 def lookup_cik(symbol: str) -> int:
     """Return the SEC CIK number for a ticker. The ticker list is cached on disk."""
+    return int(_ticker_entry(symbol)["cik_str"])
+
+
+def _ticker_entry(symbol: str) -> dict:
+    """Return the ticker list entry {cik_str, ticker, title} for a symbol."""
     os.makedirs(CACHE_DIR, exist_ok=True)
     path = os.path.join(CACHE_DIR, "company_tickers.json")
     if os.path.exists(path):
@@ -71,7 +76,7 @@ def lookup_cik(symbol: str) -> int:
     symbol = symbol.upper()
     for entry in data.values():
         if entry["ticker"].upper() == symbol:
-            return int(entry["cik_str"])
+            return entry
     raise EdgarError(f"No SEC registrant found for ticker {symbol}. ETFs and non-US companies may not file 10-Ks.")
 
 
@@ -95,7 +100,8 @@ def find_filing(symbol: str, form: str = "10-K", fiscal_year: int | None = None)
     """
     if form not in SUPPORTED_FORMS:
         raise EdgarError(f"Unsupported form {form}. Use one of {', '.join(SUPPORTED_FORMS)}.")
-    cik = lookup_cik(symbol)
+    entry = _ticker_entry(symbol)
+    cik = int(entry["cik_str"])
     years_seen: set[str] = set()
 
     for page in _filing_pages(cik):
@@ -110,6 +116,7 @@ def find_filing(symbol: str, form: str = "10-K", fiscal_year: int | None = None)
                 accession = page["accessionNumber"][i]
                 return {
                     "symbol": symbol.upper(),
+                    "company": entry.get("title", ""),  # e.g. "NVIDIA CORP" or "Apple Inc."
                     "cik": cik,
                     "form": form,
                     "accession": accession,

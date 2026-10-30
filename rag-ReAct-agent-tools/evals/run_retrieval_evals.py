@@ -24,6 +24,7 @@ Usage:
     python evals/run_retrieval_evals.py                      # k=5
     python evals/run_retrieval_evals.py --k 8 --type risk
     python evals/run_retrieval_evals.py --save evals/results/retrieval_baseline.json
+    python evals/run_retrieval_evals.py --compare evals/results/retrieval_baseline.json
 """
 
 import argparse
@@ -62,6 +63,7 @@ def index_filings(specs: dict) -> dict:
             "ok": filing["period"] == spec["period"],
             "period": filing["period"],
             "accession": filing["accession"],
+            "filing": filing,
             "chunks": filings_store.filing_chunks(filing["accession"]),
         }
     return filings
@@ -75,7 +77,7 @@ def check_gold(case: dict, chunks: list[dict]) -> tuple[bool, list[str]]:
 
 def run_case(case: dict, filing: dict, k: int) -> dict:
     start = time.time()
-    passages = filings_store.search_filing(case["question"], filing["accession"], k)
+    passages = filings_store.search(filing["filing"], case["question"], k)  # same path as the search_filings tool
     elapsed_ms = (time.time() - start) * 1000
     rank = first_hit_rank(passages, case["gold_snippets"])
     return {
@@ -98,14 +100,20 @@ def run_error_case(case: dict) -> dict:
     return {"id": case["id"], "passed": False, "detail": f"unexpectedly found {filing['form']} {filing['period']}"}
 
 
-def print_metrics(label: str, metrics: dict, k: int) -> None:
+def print_metrics(label: str, metrics: dict, k: int, before: dict | None = None) -> None:
+    """One line of metrics; with `before` (same k), each value is followed by its change, e.g. 0.57 (+0.22)."""
     if not metrics.get("n"):
         print(f"  {label:<22} (no cases)")
         return
-    print(
-        f"  {label:<22} n={metrics['n']:<3} hit@1={metrics['hit@1']:.2f}  hit@3={metrics['hit@3']:.2f}  "
-        f"hit@{k}={metrics[f'hit@{k}']:.2f}  mrr@{k}={metrics[f'mrr@{k}']:.2f}  section@1={metrics['section@1']:.2f}"
-    )
+
+    def fmt(name: str) -> str:
+        value = f"{name}={metrics[name]:.2f}"
+        if before and name in before:
+            value += f" ({metrics[name] - before[name]:+.2f})"
+        return value
+
+    names = ["hit@1", "hit@3", f"hit@{k}", f"mrr@{k}", "section@1"]
+    print(f"  {label:<22} n={metrics['n']:<3} " + "  ".join(fmt(name) for name in names))
 
 
 def main() -> None:
@@ -113,6 +121,7 @@ def main() -> None:
     parser.add_argument("--k", type=int, default=5, help="passages retrieved per question (default 5)")
     parser.add_argument("--type", help="only run cases of this question type, e.g. risk")
     parser.add_argument("--save", help="write the full results as JSON to this path")
+    parser.add_argument("--compare", help="a saved results JSON (e.g. the baseline) to show changes against")
     args = parser.parse_args()
 
     with open(GOLD_PATH) as f:
@@ -156,14 +165,32 @@ def main() -> None:
     by_type = summarize_by(results, "type", args.k)
     by_filing = summarize_by(results, "filing", args.k)
 
-    print("\nRetrieval:")
-    print_metrics("OVERALL", overall, args.k)
+    before = {}
+    if args.compare:
+        with open(args.compare) as f:
+            before = json.load(f)
+        if before.get("k") != args.k:
+            print(f"\n(--compare ignored: {args.compare} used k={before.get('k')}, this run k={args.k})")
+            before = {}
+
+    print("\nRetrieval" + (f" (change vs {os.path.basename(args.compare)})" if before else "") + ":")
+    print_metrics("OVERALL", overall, args.k, before.get("overall"))
     print("\n  By question type:")
     for name, metrics in by_type.items():
-        print_metrics(name, metrics, args.k)
+        print_metrics(name, metrics, args.k, before.get("by_type", {}).get(name))
     print("\n  By filing:")
     for name, metrics in by_filing.items():
-        print_metrics(name, metrics, args.k)
+        print_metrics(name, metrics, args.k, before.get("by_filing", {}).get(name))
+
+    if before:
+        old_ranks = {c["id"]: c["rank"] for c in before.get("cases", [])}
+        changed = [(r["id"], old_ranks[r["id"]], r["rank"]) for r in results
+                   if r["id"] in old_ranks and old_ranks[r["id"]] != r["rank"]]
+        if changed:
+            print("\n  Rank changes (None = not in top k):")
+            for case_id, old, new in changed:
+                worse = new is None or (old is not None and new > old)
+                print(f"    {'▼' if worse else '▲'} {case_id}: {old} → {new}")
     if results:
         print(f"\n  Avg search latency: {sum(r['ms'] for r in results) / len(results):.0f} ms")
 
@@ -204,7 +231,7 @@ def main() -> None:
                 "chunk_chars": filings_store.CHUNK_CHARS,
                 "overlap_chars": filings_store.OVERLAP_CHARS,
                 "filings": {
-                    key: {field: value for field, value in info.items() if field != "chunks"}
+                    key: {field: value for field, value in info.items() if field not in ("chunks", "filing")}
                     for key, info in filings.items()
                 },
                 "overall": overall,

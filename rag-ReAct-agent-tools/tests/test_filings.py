@@ -9,7 +9,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import edgar
-from filings_store import CHUNK_CHARS, chunk_text, split_sections
+from filings_store import CHUNK_CHARS, chunk_text, split_sections, strip_company
 from tools import search_filings
 
 FILING_TEXT = "\n".join([
@@ -83,6 +83,9 @@ OLDER_PAGE = {
 }
 
 
+APPLE_ENTRY = {"cik_str": 320193, "ticker": "AAPL", "title": "Apple Inc."}
+
+
 def _submissions_get(pages: dict):
     """Fake edgar._get that serves the main submissions file and older pages by URL."""
     def get(url: str) -> MagicMock:
@@ -99,23 +102,24 @@ SUBMISSIONS = {
 
 
 def test_find_filing_picks_most_recent_matching_form():
-    with patch("edgar.lookup_cik", return_value=320193), patch("edgar._get", side_effect=_submissions_get(SUBMISSIONS)) as get:
+    with patch("edgar._ticker_entry", return_value=APPLE_ENTRY), patch("edgar._get", side_effect=_submissions_get(SUBMISSIONS)) as get:
         filing = edgar.find_filing("aapl", "10-K")
     assert filing["accession"] == "0000320193-24-000123"
     assert filing["filing_date"] == "2024-11-01"
+    assert filing["company"] == "Apple Inc."
     assert filing["url"] == "https://www.sec.gov/Archives/edgar/data/320193/000032019324000123/aapl-20240928.htm"
     assert get.call_count == 1  # older pages are not fetched when the recent list has the answer
 
 
 def test_find_filing_by_fiscal_year_skips_amendments():
-    with patch("edgar.lookup_cik", return_value=320193), patch("edgar._get", side_effect=_submissions_get(SUBMISSIONS)):
+    with patch("edgar._ticker_entry", return_value=APPLE_ENTRY), patch("edgar._get", side_effect=_submissions_get(SUBMISSIONS)):
         filing = edgar.find_filing("AAPL", "10-K", fiscal_year=2023)
     assert filing["accession"] == "0000320193-23-000106"
     assert filing["period"] == "2023-09-30"
 
 
 def test_find_filing_reads_older_pages_and_10k405():
-    with patch("edgar.lookup_cik", return_value=320193), patch("edgar._get", side_effect=_submissions_get(SUBMISSIONS)) as get:
+    with patch("edgar._ticker_entry", return_value=APPLE_ENTRY), patch("edgar._get", side_effect=_submissions_get(SUBMISSIONS)) as get:
         assert edgar.find_filing("AAPL", "10-K", fiscal_year=2021)["accession"] == "0000320193-21-000105"
         filing = edgar.find_filing("AAPL", "10-K", fiscal_year=2001)
     assert filing["accession"] == "0000320193-01-000005"
@@ -124,7 +128,7 @@ def test_find_filing_reads_older_pages_and_10k405():
 
 
 def test_find_filing_stops_early_and_lists_years_seen():
-    with patch("edgar.lookup_cik", return_value=320193), patch("edgar._get", side_effect=_submissions_get(SUBMISSIONS)) as get:
+    with patch("edgar._ticker_entry", return_value=APPLE_ENTRY), patch("edgar._get", side_effect=_submissions_get(SUBMISSIONS)) as get:
         with pytest.raises(edgar.EdgarError, match=r"fiscal year 2025 .*seen.*: 2024\."):
             edgar.find_filing("AAPL", "10-K", fiscal_year=2025)
     assert get.call_count == 1  # filings dated before 2025 cannot be for fiscal 2025
@@ -166,6 +170,28 @@ def test_consecutive_chunks_overlap():
     assert first_last_line in chunks[1]["text"]
 
 
+@pytest.mark.parametrize("query, company, symbol, expected", [
+    ("What risks does NVIDIA cite?", "NVIDIA CORP", "NVDA", "What risks does cite?"),
+    ("Which companies make Nvidia's chips?", "NVIDIA CORP", "NVDA", "Which companies make chips?"),
+    ("How does Apple describe AAPL competition in Apple’s 10-K?", "Apple Inc.", "AAPL", "How does describe competition in 10-K?"),
+    ("Meta Platforms antitrust risk", "Meta Platforms, Inc.", "META", "antitrust risk"),
+    ("Does NVIDIA Corp's 10-K mention Apple Inc. as a customer?", "NVIDIA CORP", "NVDA", "Does 10-K mention Apple Inc. as a customer?"),
+    ("What does Apple Inc. say about tariffs?", "Apple Inc.", "AAPL", "What does say about tariffs?"),
+    ("What does Coca-Cola say about sugar taxes?", "COCA COLA CO", "KO", "What does say about sugar taxes?"),
+    # lower-case words that happen to be the company name, and one-letter tickers, are kept
+    ("Did Target miss its revenue target?", "TARGET CORP", "TGT", "Did miss its revenue target?"),
+    ("A summary of supply risks", "AGILENT TECHNOLOGIES, INC.", "A", "A summary of supply risks"),
+    # a query that is only the name is left as it is rather than emptied
+    ("NVIDIA", "NVIDIA CORP", "NVDA", "NVIDIA"),
+])
+def test_strip_company_removes_name_and_ticker(query, company, symbol, expected):
+    assert strip_company(query, {"company": company, "symbol": symbol}) == expected
+
+
+def test_strip_company_without_company_name_only_drops_ticker():
+    assert strip_company("EXM supply chain risks", {"symbol": "EXM"}) == "supply chain risks"
+
+
 # ---------------------------------------------------------------------------
 # Index and search
 # ---------------------------------------------------------------------------
@@ -178,6 +204,15 @@ def test_index_and_search_finds_risk_section(filings_db):
     assert results[0]["section"] == "Part I — Item 1A. Risk Factors"
     assert "suppliers in Asia" in results[0]["text"]
     assert not results[0]["text"].startswith("Part I")  # heading is stripped from the returned text
+
+
+def test_search_strips_company_name_before_querying(filings_db):
+    filing = dict(FILING, company="EXAMPLE CORP")
+    filings_db.index_filing(filing, FILING_TEXT)
+    with patch.object(filings_db, "search_filing", wraps=filings_db.search_filing) as search_filing:
+        results = filings_db.search(filing, "What supply chain risks does Example Corp describe?", 1)
+    search_filing.assert_called_once_with("What supply chain risks does describe?", FILING["accession"], 1)
+    assert results[0]["section"] == "Part I — Item 1A. Risk Factors"
 
 
 def test_reindexing_does_not_duplicate(filings_db):

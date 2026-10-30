@@ -31,6 +31,7 @@ This is step 5 of the learning roadmap, built on top of the [long-term memory ag
 - **Latest filing by default, any year on request.** Without `fiscal_year`, a search uses the most recent filing of that form. EDGAR's answer is cached for 24 hours, so even a long-running app picks up a new 10-K within a day; older ones stay in the index.
 - **Older filings by fiscal year.** `fiscal_year` is the year the reporting period ended (Apple's year ending September 2021 is 2021; NVIDIA's year ending January 2025 is 2025). To compare years, the agent searches each year with the same query and says which period each point comes from.
 - **Chunks follow the filing's structure.** Chunks are about 1,000 characters, which is what the embedding model reads in full. They overlap by about 200 characters and never cross a section boundary. Each chunk is tagged with its section, e.g. `Part I — Item 1A. Risk Factors`, and the heading is embedded with the text, so a search for "risk factors" favours risk chunks.
+- **The company's name is removed from the search.** The search only covers that company's filing, so its name adds nothing to the query. It would also pull results toward boilerplate that repeats the name. The name and ticker are removed first, e.g. "What risks does NVIDIA cite?" becomes "What risks does cite?".
 - **Hidden XBRL data is removed.** Modern filings embed machine-readable tags; these are stripped so only the readable document is indexed.
 - **Same local embedding model** as long-term memory (`all-MiniLM-L6-v2`). No extra API key or cost.
 
@@ -100,7 +101,15 @@ python evals/run_retrieval_evals.py --save evals/results/retrieval_run.json  # a
 - **Metrics:** filing lookup, hit@1/3/k, MRR@k and section@1, shown overall, per question type and per filing. A passage counts as a hit if it contains a gold snippet.
 - **Gold check:** every snippet is checked against the indexed chunks before scoring. A typo in the gold set is reported as invalid gold, not counted as a retrieval miss.
 - **Index:** the filings are indexed once into `evals/filings_db/` (gitignored). Delete that folder after changing chunking.
-- **Baseline:** `evals/results/retrieval_baseline.json`, with hit@5 = 0.57 overall and 0.10 on NVIDIA. The company name in a question pulls retrieval toward boilerplate chunks that repeat the name.
+- **Compare runs:** `--compare <saved json>` shows each metric's change and lists the questions whose rank moved.
+- **Results so far** (`evals/results/`):
+
+  | Run | hit@1 | hit@5 | MRR@5 | NVIDIA hit@5 |
+  |---|---|---|---|---|
+  | `retrieval_baseline.json` | 0.35 | 0.57 | 0.43 | 0.10 |
+  | `retrieval_strip_company.json`: company name removed from queries | 0.32 | **0.92** | **0.53** | **0.90** |
+
+  The company's name in a question pulled the search toward boilerplate that repeats it ("All references to NVIDIA ..."), so the name and ticker are now removed before searching. Ranking the best passage first (hit@1) is the next gap to close.
 
 ## Available Tools
 

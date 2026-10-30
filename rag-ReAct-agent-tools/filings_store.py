@@ -28,6 +28,8 @@ _collection = None
 # (symbol, form, fiscal_year) -> (looked_up_at, filing)
 _lookup_cache: dict[tuple[str, str, int | None], tuple[float, dict]] = {}
 
+_NAME_SUFFIXES = r"inc|corp|corporation|co|company|ltd|limited|plc|holdings|group|n\.?v|s\.?a|lp|llc"
+_NAME_SUFFIX_RE = re.compile(rf"[,\s]+({_NAME_SUFFIXES})\.?$", re.I)
 _PART_RE = re.compile(r"^PART\s+(I{1,3}|IV)\b", re.I)
 _ITEM_RE = re.compile(r"^ITEM\s+(\d{1,2}[A-C]?)\s*[.:\-—]?\s*(.*)$", re.I)
 
@@ -170,6 +172,48 @@ def ensure_indexed(symbol: str, form: str = "10-K", fiscal_year: int | None = No
     if not is_indexed(filing["accession"]):
         filing["chunks"] = index_filing(filing, edgar.fetch_filing_text(filing))
     return filing
+
+
+def _short_name(company: str) -> str:
+    """'NVIDIA CORP' -> 'NVIDIA', 'Meta Platforms, Inc.' -> 'Meta Platforms'."""
+    name = company.strip()
+    while True:
+        shorter = _NAME_SUFFIX_RE.sub("", name).strip()
+        if shorter == name:
+            return name
+        name = shorter
+
+
+def strip_company(query: str, filing: dict) -> str:
+    """Remove the company's name and ticker from a query.
+
+    The search is already limited to this company's filing, so the name adds nothing, and the embedding
+    then favours boilerplate that repeats it ("All references to NVIDIA ...") over the passage asked about.
+    A name only counts when capitalised ("Target's risks", not "revenue target"); a ticker only in upper
+    case and at least two letters long (so "A" and "on" are left alone).
+    """
+    cleaned = query
+    name = _short_name(filing.get("company", ""))
+    if len(name) >= 2:
+        words = r"[\s\-]+".join(re.escape(w) for w in name.split())
+        cleaned = re.sub(
+            # the name, then an optional legal suffix ("Corp", "Inc.") and possessive
+            rf"\b{words}\b(?:,?\s+(?:{_NAME_SUFFIXES})\b\.?)?(?:['’]s\b)?",
+            lambda m: "" if m.group(0)[0].isupper() else m.group(0),
+            cleaned,
+            flags=re.I,
+        )
+    symbol = filing.get("symbol", "")
+    if len(symbol) >= 2:
+        cleaned = re.sub(rf"\b{re.escape(symbol)}(?:['’]s)?\b", "", cleaned)
+    cleaned = re.sub(r"\s+([?.,;:])", r"\1", re.sub(r"\s+", " ", cleaned)).strip(" ,")
+    # a query that was only the company name keeps it rather than becoming empty
+    return cleaned if len(re.findall(r"\w", cleaned)) >= 3 else query
+
+
+def search(filing: dict, query: str, n_results: int = 5) -> list[dict]:
+    """Search one filing for the query, with the company's own name removed from it first."""
+    return search_filing(strip_company(query, filing), filing["accession"], n_results)
 
 
 def search_filing(query: str, accession: str, n_results: int = 5) -> list[dict]:

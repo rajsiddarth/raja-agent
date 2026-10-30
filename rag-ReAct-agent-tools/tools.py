@@ -124,7 +124,10 @@ TOOLS = [
                 "symbol": {"type": "string", "description": "Ticker symbol of a US-listed company (e.g. AAPL)."},
                 "query": {
                     "type": "string",
-                    "description": "What to look for, phrased like the filing would, e.g. 'supply chain concentration risk'.",
+                    "description": (
+                        "What to look for, phrased like the filing would, e.g. 'supply chain concentration risk'. "
+                        "No need to repeat the company name; the search is already limited to its filing."
+                    ),
                 },
                 "form": {
                     "type": "string",
@@ -311,7 +314,7 @@ def search_filings(args: dict) -> dict:
             "period": filing["period"],
             "url": filing["url"],
         },
-        "passages": filings_store.search_filing(args["query"], filing["accession"], n_results),
+        "passages": filings_store.search(filing, args["query"], n_results),
     }
 
 
