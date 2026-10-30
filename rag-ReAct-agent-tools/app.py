@@ -47,7 +47,9 @@ with st.sidebar:
         filings = indexed_filings()
         st.caption(f"📄 Indexed filings: {len(filings)}")
         for f in filings:
-            st.caption(f"{f['symbol']} {f['form']} · filed {f['filing_date']} · {f['chunks']} chunks")
+            st.caption(
+                f"{f['symbol']} {f['form']} · period {f['period']} · filed {f['filing_date']} · {f['chunks']} chunks"
+            )
     except Exception as exc:
         st.caption(f"📄 Filings index unavailable: {exc}")
 

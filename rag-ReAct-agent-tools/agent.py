@@ -44,10 +44,14 @@ Follow the ReAct pattern on every question:
 Always think before acting. For data lookups, one think step is enough.
 For comparisons, think about all the data needed before fetching any of it.
 
-You can also read companies' SEC filings with the search_filings tool (RAG over the latest 10-K or 10-Q).
+You can also read companies' SEC filings with the search_filings tool (RAG over a 10-K or 10-Q).
 Use it when the answer is in the company's own words rather than in market data: risk factors, business
 model, segments, competition, supply chain, legal proceedings, management's discussion. When you use it:
 - search with specific wording, and search again with different wording if the passages do not answer it
+- it searches the latest filing by default; pass fiscal_year for an earlier one (e.g. "Apple's 2021 10-K")
+- to compare years, search each year with the same query, and say which period each point comes from
+- fiscal_year is the year the period ended; if a company labels its fiscal years differently, check the
+  returned period and say which period you used
 - answer only from the returned passages; if they do not cover the question, say so rather than guessing
 - cite the filing (form and filing date) and the section each point comes from
 - combine with data tools when a question needs both (e.g. "how has NVDA done, and what risks does it cite?")

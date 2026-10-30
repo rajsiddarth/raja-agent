@@ -6,6 +6,7 @@ so later questions about the same filing (from any session) are fast.
 
 import os
 import re
+import time
 
 import edgar
 
@@ -20,9 +21,15 @@ MIN_CHUNK_CHARS = 80
 # Override in tests to avoid downloading the default embedding model
 embedding_function = None
 
-_collection = None
-_latest_cache: dict[tuple[str, str], dict] = {}
+# How long an EDGAR "which filing is current?" answer is trusted before asking EDGAR again
+LOOKUP_TTL_S = 24 * 60 * 60
 
+_collection = None
+# (symbol, form, fiscal_year) -> (looked_up_at, filing)
+_lookup_cache: dict[tuple[str, str, int | None], tuple[float, dict]] = {}
+
+_NAME_SUFFIXES = r"inc|corp|corporation|co|company|ltd|limited|plc|holdings|group|n\.?v|s\.?a|lp|llc"
+_NAME_SUFFIX_RE = re.compile(rf"[,\s]+({_NAME_SUFFIXES})\.?$", re.I)
 _PART_RE = re.compile(r"^PART\s+(I{1,3}|IV)\b", re.I)
 _ITEM_RE = re.compile(r"^ITEM\s+(\d{1,2}[A-C]?)\s*[.:\-—]?\s*(.*)$", re.I)
 
@@ -47,7 +54,7 @@ def reset() -> None:
     """Drop cached handles (used when FILINGS_DIR changes, e.g. in tests)."""
     global _collection
     _collection = None
-    _latest_cache.clear()
+    _lookup_cache.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -150,16 +157,63 @@ def index_filing(filing: dict, text: str) -> int:
     return len(chunks)
 
 
-def ensure_latest_indexed(symbol: str, form: str = "10-K") -> dict:
-    """Make sure the company's most recent filing of this form is indexed; return its metadata."""
-    key = (symbol.upper(), form)
-    filing = _latest_cache.get(key)
-    if filing is None:
-        filing = edgar.latest_filing(symbol, form)
-        _latest_cache[key] = filing
+def ensure_indexed(symbol: str, form: str = "10-K", fiscal_year: int | None = None) -> dict:
+    """Make sure the requested filing (latest, or for a fiscal year) is indexed; return its metadata.
+
+    EDGAR lookups are cached for LOOKUP_TTL_S, so a long-running app still notices a new filing.
+    """
+    key = (symbol.upper(), form, fiscal_year)
+    cached = _lookup_cache.get(key)
+    if cached is not None and time.time() - cached[0] < LOOKUP_TTL_S:
+        filing = cached[1]
+    else:
+        filing = edgar.find_filing(symbol, form, fiscal_year)
+        _lookup_cache[key] = (time.time(), filing)
     if not is_indexed(filing["accession"]):
         filing["chunks"] = index_filing(filing, edgar.fetch_filing_text(filing))
     return filing
+
+
+def _short_name(company: str) -> str:
+    """'NVIDIA CORP' -> 'NVIDIA', 'Meta Platforms, Inc.' -> 'Meta Platforms'."""
+    name = company.strip()
+    while True:
+        shorter = _NAME_SUFFIX_RE.sub("", name).strip()
+        if shorter == name:
+            return name
+        name = shorter
+
+
+def strip_company(query: str, filing: dict) -> str:
+    """Remove the company's name and ticker from a query.
+
+    The search is already limited to this company's filing, so the name adds nothing, and the embedding
+    then favours boilerplate that repeats it ("All references to NVIDIA ...") over the passage asked about.
+    A name only counts when capitalised ("Target's risks", not "revenue target"); a ticker only in upper
+    case and at least two letters long (so "A" and "on" are left alone).
+    """
+    cleaned = query
+    name = _short_name(filing.get("company", ""))
+    if len(name) >= 2:
+        words = r"[\s\-]+".join(re.escape(w) for w in name.split())
+        cleaned = re.sub(
+            # the name, then an optional legal suffix ("Corp", "Inc.") and possessive
+            rf"\b{words}\b(?:,?\s+(?:{_NAME_SUFFIXES})\b\.?)?(?:['’]s\b)?",
+            lambda m: "" if m.group(0)[0].isupper() else m.group(0),
+            cleaned,
+            flags=re.I,
+        )
+    symbol = filing.get("symbol", "")
+    if len(symbol) >= 2:
+        cleaned = re.sub(rf"\b{re.escape(symbol)}(?:['’]s)?\b", "", cleaned)
+    cleaned = re.sub(r"\s+([?.,;:])", r"\1", re.sub(r"\s+", " ", cleaned)).strip(" ,")
+    # a query that was only the company name keeps it rather than becoming empty
+    return cleaned if len(re.findall(r"\w", cleaned)) >= 3 else query
+
+
+def search(filing: dict, query: str, n_results: int = 5) -> list[dict]:
+    """Search one filing for the query, with the company's own name removed from it first."""
+    return search_filing(strip_company(query, filing), filing["accession"], n_results)
 
 
 def search_filing(query: str, accession: str, n_results: int = 5) -> list[dict]:
@@ -175,13 +229,23 @@ def search_filing(query: str, accession: str, n_results: int = 5) -> list[dict]:
     ]
 
 
+def filing_chunks(accession: str) -> list[dict]:
+    """Every stored chunk of one filing: [{section, text}] (used by the retrieval eval to check gold labels)."""
+    result = _get_collection().get(where={"accession": accession}, include=["documents", "metadatas"])
+    return [
+        {"section": meta["section"], "text": doc.split("\n", 1)[1] if "\n" in doc else doc}
+        for doc, meta in zip(result["documents"], result["metadatas"])
+    ]
+
+
 def indexed_filings() -> list[dict]:
-    """List the filings stored in the index: [{symbol, form, filing_date, chunks}], newest first."""
+    """List the filings stored in the index: [{symbol, form, filing_date, period, chunks}], newest first."""
     metas = _get_collection().get(include=["metadatas"])["metadatas"]
     filings: dict[str, dict] = {}
     for meta in metas:
         entry = filings.setdefault(meta["accession"], {
-            "symbol": meta["symbol"], "form": meta["form"], "filing_date": meta["filing_date"], "chunks": 0,
+            "symbol": meta["symbol"], "form": meta["form"], "filing_date": meta["filing_date"],
+            "period": meta["period"], "chunks": 0,
         })
         entry["chunks"] += 1
     return sorted(filings.values(), key=lambda f: f["filing_date"], reverse=True)

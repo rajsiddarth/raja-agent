@@ -109,8 +109,10 @@ TOOLS = [
     {
         "name": "search_filings",
         "description": (
-            "Search the company's most recent SEC filing (10-K annual report or 10-Q quarterly report) "
-            "and return the most relevant passages, with section names and filing date. "
+            "Search one of the company's SEC filings (10-K annual report or 10-Q quarterly report) "
+            "and return the most relevant passages, with section names, filing date and period. "
+            "Searches the most recent filing unless fiscal_year is given; to compare years, "
+            "call it once per year with the same query. "
             "Use for questions answered in the company's own words: risk factors, business description, "
             "segments, competition, supply chain, legal proceedings, management's discussion (MD&A), "
             "guidance commentary, accounting policies. Not for prices or ratios — use the data tools for those. "
@@ -122,12 +124,23 @@ TOOLS = [
                 "symbol": {"type": "string", "description": "Ticker symbol of a US-listed company (e.g. AAPL)."},
                 "query": {
                     "type": "string",
-                    "description": "What to look for, phrased like the filing would, e.g. 'supply chain concentration risk'.",
+                    "description": (
+                        "What to look for, phrased like the filing would, e.g. 'supply chain concentration risk'. "
+                        "No need to repeat the company name; the search is already limited to its filing."
+                    ),
                 },
                 "form": {
                     "type": "string",
                     "enum": ["10-K", "10-Q"],
                     "description": "10-K for the annual report (default, most detailed), 10-Q for the latest quarter.",
+                },
+                "fiscal_year": {
+                    "type": "integer",
+                    "description": (
+                        "Optional. The year the reporting period ended, e.g. 2022 for Apple's 10-K for the year "
+                        "ending September 2022, or 2025 for NVIDIA's year ending January 2025. With 10-Q, the "
+                        "latest quarter ending in that year. Omit for the most recent filing."
+                    ),
                 },
                 "n_results": {
                     "type": "integer",
@@ -278,11 +291,19 @@ def recall_memory(args: dict) -> dict:
 
 
 def search_filings(args: dict) -> dict:
-    """Return the passages of the latest 10-K/10-Q most relevant to the query."""
+    """Return the passages of a 10-K/10-Q (latest, or for a fiscal year) most relevant to the query."""
     form = args.get("form") if args.get("form") in edgar.SUPPORTED_FORMS else "10-K"
     n_results = max(1, min(int(args.get("n_results") or 5), 8))
+    fiscal_year = args.get("fiscal_year")
+    if fiscal_year is not None:
+        try:
+            fiscal_year = int(fiscal_year)
+        except (TypeError, ValueError):
+            return {"error": f"fiscal_year must be a year such as 2022, not {fiscal_year!r}."}
+        if not 1994 <= fiscal_year <= 2100:
+            return {"error": f"fiscal_year {fiscal_year} is out of range; EDGAR filings start in the mid-1990s."}
     try:
-        filing = filings_store.ensure_latest_indexed(args["symbol"], form)
+        filing = filings_store.ensure_indexed(args["symbol"], form, fiscal_year)
     except edgar.EdgarError as exc:
         return {"error": str(exc)}
     return {
@@ -293,7 +314,7 @@ def search_filings(args: dict) -> dict:
             "period": filing["period"],
             "url": filing["url"],
         },
-        "passages": filings_store.search_filing(args["query"], filing["accession"], n_results),
+        "passages": filings_store.search(filing, args["query"], n_results),
     }
 
 
